@@ -99,3 +99,6 @@ target_sources_ifdef(CONFIG_DESKTOP_NRF_PROFILER_SYNC_GPIO_ENABLE
 
 target_sources_ifdef(CONFIG_DESKTOP_DVFS
 		     app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/dvfs.c)
+
+target_sources_ifdef(CONFIG_DESKTOP_GZP_ENABLE
+		     app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/gzp.c)
