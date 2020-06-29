@@ -1,0 +1,61 @@
+#
+# Copyright (c) 2024 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
+#
+
+menu "Gazell"
+
+config DESKTOP_GZP_ENABLE
+	bool "Enable Gazell module"
+	depends on DESKTOP_ROLE_HID_PERIPHERAL
+	depends on !DESKTOP_BT
+	select GAZELL
+	select GZLL
+	help
+	  Enables Gazell module.
+
+if DESKTOP_GZP_ENABLE
+
+choice GAZELL_PAIRING_ROLE
+	default GAZELL_PAIRING_DEVICE if DESKTOP_ROLE_HID_PERIPHERAL
+	help
+	  Set proper Gazell pairing role.
+endchoice
+
+config DESKTOP_GZP_CRYPTO
+	bool
+	default y
+	select GAZELL_PAIRING
+	select GAZELL_PAIRING_CRYPT
+	imply GAZELL_PAIRING_SETTINGS if SETTINGS
+	select CRYPTO
+	select CRYPTO_NRF_ECB
+	select ENTROPY_GENERATOR
+	help
+	  Selects Kconfig options needed for Gazell pairing and encryption.
+
+config DESKTOP_GZP_SUBSCRIBER_PRIORITY
+	int "Gazell HID reports subscriber priority"
+	default 1
+	range 1 255
+	help
+	  The lower value means the lower priority in subscribtion to HID
+	  reports. By default, Gazell uses the lowest possible priority.
+
+config DESKTOP_GZP_LEGACY_HID_REPORT_MAP
+	bool "Translate HID reports to nRFready Desktop 2 HID report map"
+	default y
+	help
+	  Translate HID reports from the default report map used by nRF Desktop
+	  to legacy HID report map that was used by nRFReady Desktop 2 reference
+	  design. This option must be enabled for compatibility with nRFready
+	  Desktop 2 Reference Design dongle.
+
+module = DESKTOP_GZP
+module-str = Gazell
+source "subsys/logging/Kconfig.template.log_config"
+
+endif
+
+endmenu
