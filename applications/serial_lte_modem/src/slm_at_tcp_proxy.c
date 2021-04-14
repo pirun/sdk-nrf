@@ -79,6 +79,8 @@ extern struct at_param_list at_param_list;
 extern char rsp_buf[CONFIG_SLM_SOCKET_RX_MAX * 2];
 extern uint8_t rx_data[CONFIG_SLM_SOCKET_RX_MAX];
 
+extern int poweron_uart(bool sync_str);
+
 /** forward declaration of thread function **/
 static void tcpcli_thread_func(void *p1, void *p2, void *p3);
 static void tcpsvr_thread_func(void *p1, void *p2, void *p3);
@@ -581,8 +583,6 @@ static int tcpsvr_input(int infd)
 				return -ECONNREFUSED;
 			}
 		}
-		sprintf(rsp_buf, "\r\n#XTCPSVR: \"%s\",\"connected\"\r\n", peer_addr);
-		rsp_send(rsp_buf, strlen(rsp_buf));
 		proxy.sock_peer = ret;
 #if defined(CONFIG_SLM_MOD_FLASH)
 		/* Activate MODEM FlASH LED pin */
@@ -597,6 +597,9 @@ static int tcpsvr_input(int infd)
 		if (proxy.datamode) {
 			enter_datamode(tcp_datamode_callback);
 		}
+		sprintf(rsp_buf, "\r\n#XTCPSVR: \"%s\",\"connected\"\r\n",
+			peer_addr);
+		rsp_send(rsp_buf, strlen(rsp_buf));
 		LOG_DBG("New connection - %d", proxy.sock_peer);
 		fds[nfds].fd = proxy.sock_peer;
 		fds[nfds].events = POLLIN;
