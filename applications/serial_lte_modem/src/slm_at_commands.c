@@ -87,6 +87,7 @@ int set_uart_baudrate(uint32_t baudrate);
 void rsp_send(const uint8_t *str, size_t len);
 int poweroff_uart(void);
 bool verify_datamode_control(uint16_t time_limit, uint16_t *time_limit_min);
+extern int slm_setting_uart_save(void);
 
 static void modem_power_off(void)
 {
@@ -202,7 +203,13 @@ static int handle_at_reset(enum at_cmd_type type)
 
 static void set_uart_wk(struct k_work *work)
 {
+	int err = 0;
+
 	set_uart_baudrate(slm_work.data);
+	err = slm_setting_uart_save();
+	if (err != 0) {
+		LOG_ERR("uart_config_get: %d", err);
+	}
 }
 
 /**@brief handle AT#XSLMUART commands
