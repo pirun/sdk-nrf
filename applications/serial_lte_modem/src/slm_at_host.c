@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <logging/log.h>
 #include <drivers/uart.h>
+#include <hal/nrf_uarte.h>
 #include <sys/ring_buffer.h>
 #include <string.h>
 #include <init.h>

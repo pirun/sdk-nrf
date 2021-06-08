@@ -15,19 +15,27 @@
 #include <hal/nrf_gpio.h>
 #include <hal/nrf_power.h>
 #include <hal/nrf_regulators.h>
+#include <hal/nrf_uarte.h>
 #include <modem/nrf_modem_lib.h>
 #include <dfu/mcuboot.h>
 #include <dfu/dfu_target.h>
 #include <sys/reboot.h>
 #include <drivers/clock_control.h>
 #include <drivers/clock_control/nrf_clock_control.h>
+#include <mgmt/fmfu_mgmt.h>
+#include <mgmt/fmfu_mgmt_stat.h>
+#include "os_mgmt/os_mgmt.h"
+#include "img_mgmt/img_mgmt.h"
 #include "slm_at_host.h"
 #include "slm_at_fota.h"
 
 LOG_MODULE_REGISTER(app, CONFIG_SLM_LOG_LEVEL);
 
-#define SLM_WQ_STACK_SIZE	KB(2)
-#define SLM_WQ_PRIORITY		K_LOWEST_APPLICATION_THREAD_PRIO
+#define SLM_DFU_STATUS          0xBC  /* Flag to be saved in GPREGRET[0]*/
+#define BUTTONLESS_DFU                /* Flag to support buttonless DFU */
+
+#define SLM_WQ_STACK_SIZE       KB(2)
+#define SLM_WQ_PRIORITY         K_LOWEST_APPLICATION_THREAD_PRIO
 static K_THREAD_STACK_DEFINE(slm_wq_stack_area, SLM_WQ_STACK_SIZE);
 
 static const struct device *gpio_dev;
@@ -121,6 +129,8 @@ void enter_idle(bool full_idle)
 
 void enter_sleep(void)
 {
+	//nrf_modem_lib_shutdown();
+
 	/*
 	 * Due to errata 4, Always configure PIN_CNF[n].INPUT before PIN_CNF[n].SENSE.
 	 */
@@ -132,10 +142,16 @@ void enter_sleep(void)
 	nrf_regulators_system_off(NRF_REGULATORS_NS);
 }
 
-void handle_nrf_modem_lib_init_ret(void)
+void enter_dfu(void)
 {
-	int ret = nrf_modem_lib_get_init_ret();
+	//nrf_modem_lib_shutdown();
 
+	nrf_power_gpregret_set(NRF_POWER_NS, SLM_DFU_STATUS);
+	sys_reboot(SYS_REBOOT_COLD);
+}
+
+void handle_nrf_modem_lib_init_ret(int ret)
+{
 	/* Handle return values relating to modem firmware update */
 	switch (ret) {
 	case 0:
@@ -202,10 +218,18 @@ void start_execute(void)
 		return;
 	}
 
-	/* Post-FOTA handling */
-	if (fota_type != DFU_TARGET_IMAGE_TYPE_MCUBOOT) {
-		handle_nrf_modem_lib_init_ret();
-	} else {
+	/* Modem Post-FOTA handling */
+	err = nrf_modem_lib_init(NORMAL_MODE);
+	handle_nrf_modem_lib_init_ret(err);
+
+	/* Init at_cmd lib */
+	err = at_cmd_init();
+	if (err) {
+		LOG_ERR("Failed to init at cmd: %d", err);
+		return;
+	}
+
+	if (fota_type == DFU_TARGET_IMAGE_TYPE_MCUBOOT) {
 		/* All initializations were successful mark image as working so that we
 		 * will not revert upon reboot.
 		 */
@@ -234,15 +258,65 @@ void start_execute(void)
 	k_work_init(&exit_idle_work, exit_idle);
 }
 
+void start_dfu_execute(void)
+{
+	int err;
+
+	/* Initialize modem in DFU mode */
+	err = nrf_modem_lib_init(FULL_DFU_MODE);
+	if (err) {
+		LOG_ERR("Error in modem lib init: %d", err);
+		return;
+	}
+
+	/* Register SMP Communication stats */
+	fmfu_mgmt_stat_init();
+	/* Registers the OS management command handler group */
+	os_mgmt_register_group();
+	/* Registers the image management command handler group */
+	img_mgmt_register_group();
+	/* Initialize MCUMgr handlers for full modem update */
+	err = fmfu_mgmt_init();
+	if (err) {
+		LOG_ERR("Error in fmfu init: %d", err);
+		return;
+	}
+#if MCUMGR_CONFIRM_IMAGE
+	/** Need to keep in DFU mode if mcumgr would test then confirm image,
+	 *  Which means two Reset by mcumgr to boot back to SLM mode
+	 */
+	if (boot_is_img_confirmed()) {
+		LOG_INF("Current image confirmed");
+		nrf_power_gpregret_set(NRF_POWER_NS, 0x00);
+	} else {
+		LOG_INF("Current image not confirmed yet");
+	}
+#else
+	/** Exit DFU mode directly if mcumgr would confirm image only,
+	 *  Which means one final Reset by mcumgr to boot back to SLM mode
+	 */
+	nrf_power_gpregret_set(NRF_POWER_NS, 0x00);
+#endif
+	LOG_INF("Enter DFU mode");
+}
+
 #if defined(CONFIG_SLM_START_SLEEP)
 int main(void)
 {
 	uint32_t rr = nrf_power_resetreas_get(NRF_POWER_NS);
+	uint8_t gp = nrf_power_gpregret_get(NRF_POWER_NS);
 
 	LOG_DBG("RR: 0x%08x", rr);
 	if (rr & NRF_POWER_RESETREAS_OFF_MASK) {
 		nrf_power_resetreas_clear(NRF_POWER_NS, 0x70017);
-		start_execute();
+		if (gp == SLM_DFU_STATUS) {
+			nrf_uarte_disable(NRF_UARTE2);
+			start_dfu_execute();
+		} else {
+			nrf_uarte_disable(NRF_UARTE0);
+			nrf_uarte_enable(NRF_UARTE2);
+			start_execute();
+		}
 	} else {
 		LOG_INF("Sleep");
 		enter_sleep();
@@ -253,8 +327,37 @@ int main(void)
 #else
 int main(void)
 {
-	start_execute();
+#if defined(BUTTONLESS_DFU)
+	uint8_t gp;
 
+	gp = nrf_power_gpregret_get(NRF_POWER_NS);
+	LOG_INF("GP: 0x%02x", gp);
+	if (gp == SLM_DFU_STATUS) {
+		nrf_uarte_disable(NRF_UARTE2);
+		start_dfu_execute();
+	} else {
+		nrf_uarte_disable(NRF_UARTE0);
+		nrf_uarte_enable(NRF_UARTE2);
+		start_execute();
+	}
+#else
+#define DFU_PIN 6
+	int run_dfu;
+
+	gpio_dev = device_get_binding(DT_LABEL(DT_NODELABEL(gpio0)));
+	gpio_pin_configure(gpio_dev, DFU_PIN, GPIO_INPUT | GPIO_PULL_UP);
+	k_sleep(K_MSEC(100));
+	run_dfu = gpio_pin_get(gpio_dev, DFU_PIN);
+	LOG_INF("run_slm: %d", run_dfu);
+	if (run_dfu == 0) {
+		nrf_uarte_disable(NRF_UARTE2);
+		start_dfu_execute();
+	} else {
+		nrf_uarte_disable(NRF_UARTE0);
+		nrf_uarte_enable(NRF_UARTE2);
+		start_execute();
+	}
+#endif
 	return 0;
 }
 #endif	/* CONFIG_SLM_GPIO_WAKEUP */

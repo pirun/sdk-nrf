@@ -84,6 +84,7 @@ extern struct uart_config slm_uart;
 /* global functions defined in different files */
 void enter_idle(bool full_idle);
 void enter_sleep(void);
+void enter_dfu(void);
 int slm_uart_configure(uint32_t baudrate, uint8_t hwfc);
 void rsp_send(const uint8_t *str, size_t len);
 int poweroff_uart(void);
@@ -176,6 +177,28 @@ static int handle_at_sleep(enum at_cmd_type type)
 			SHUTDOWN_MODE_SLEEP, SHUTDOWN_MODE_UART);
 		rsp_send(rsp_buf, strlen(rsp_buf));
 		ret = 0;
+	}
+
+	return ret;
+}
+
+/**@brief handle AT#XDFU commands
+ *  AT#XDFU
+ *  AT#XDFU? not supported
+ *  AT#XDFU=? not supported
+ */
+static int handle_at_dfu(enum at_cmd_type type)
+{
+	int ret = -EINVAL;
+	char ok_str[] = "\r\nOK\r\n";
+
+	if (type == AT_CMD_TYPE_SET_COMMAND) {
+		rsp_send(ok_str, strlen(ok_str));
+		k_sleep(K_MSEC(50));
+		slm_at_host_uninit();
+		modem_power_off();
+		enter_dfu();
+		ret = 0; /* Cannot reach here */
 	}
 
 	return ret;
@@ -430,6 +453,7 @@ static struct slm_at_cmd {
 	/* Generic commands */
 	{"AT#XSLMVER", handle_at_slmver},
 	{"AT#XSLEEP", handle_at_sleep},
+	{"AT#XDFU", handle_at_dfu},
 	{"AT#XRESET", handle_at_reset},
 	{"AT#XCLAC", handle_at_clac},
 	{"AT#XSLMUART", handle_at_slmuart},
