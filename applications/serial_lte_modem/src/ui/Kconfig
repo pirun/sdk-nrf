@@ -1,0 +1,81 @@
+#
+# Copyright (c) 2021 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
+
+config SLM_UI
+	bool "Enable SLM UI"
+	depends on SLM_GPIO
+
+config SLM_UI_LTE_STATE
+	bool "LTE connection state pin option"
+	default y
+	help
+	  This is an option to enable GPIO pin as LTE state indicator.
+
+config SLM_UI_LTE_STATE_PIN
+	int "LTE connection state pin"
+	default 2
+	help
+	  Default GPIO pin as LTE state indicator.
+
+config SLM_UI_DATA_ACTIVITY
+	bool "Data pin option"
+	default y
+	help
+	  This is an option to enable GPIO pin as data indicator.
+
+config SLM_UI_DATA_ACTIVITY_PIN
+	int "Data activity pin"
+	default 3
+	help
+	  Default GPIO pin as data activity indicator.
+
+config SLM_UI_LTE_SIGNAL
+	bool "LTE signal strength pin option"
+	default y
+	help
+	  This is an option to enable GPIO pin as LTE signal indicator.
+
+config SLM_UI_LTE_SIGNAL_PIN
+	int "LTE signal strength pin"
+	default 4
+	help
+	  Default GPIO pin as LTE signal strength indicator.
+
+config SLM_STATS_BATTERY_INTERVAL
+	int "Interval to check battery level in ms"
+	default 600000
+
+config SLM_MOD_FLASH
+	bool "modem flash pin option"
+	help
+	  This is an option to enable GPIO pin as modem flash indicator.
+
+config SLM_MOD_FLASH_PIN
+	int "MOD_FLASH Pin"
+	default 24
+
+config SLM_STATS_WATCHDOG
+	bool "Watchdog support in SLM"
+	select WATCHDOG
+
+config SLM_STATS_WATCHDOG_TIMEOUT_MSEC
+	int "Watchdog timeout in milliseconds"
+	default 60000
+
+config SLM_DIAG
+	bool "Enable SLM diagnostic module"
+	default SLM_CUSTOMIZED && SLM_UI
+	select SLM_UI_DIAG
+
+config SLM_UI_DIAG
+	bool "SLM diagnostic pin option"
+	help
+	  This is an option to enable GPIO pin as SLM diagnostic indicator.
+
+config SLM_UI_DIAG_PIN
+	int "SLM diagnostic pin"
+	default 5
+	help
+	  Default GPIO pin as SLM diagnostic indicator.

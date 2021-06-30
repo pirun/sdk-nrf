@@ -40,6 +40,9 @@
 #if defined(CONFIG_SLM_HTTPC)
 #include "slm_at_httpc.h"
 #endif
+#if defined(CONFIG_SLM_UI)
+#include "slm_ui.h"
+#endif
 #if defined(CONFIG_SLM_TWI)
 #include "slm_at_twi.h"
 #endif
@@ -580,6 +583,14 @@ int slm_at_init(void)
 		return -EFAULT;
 	}
 #endif
+#if defined(CONFIG_SLM_UI)
+	err = slm_ui_init();
+	if (err) {
+		LOG_ERR("Failed to init ui: %d", err);
+		return -EFAULT;
+	}
+	LOG_ERR("slm_ui_init ok");
+#endif
 #if defined(CONFIG_SLM_TWI)
 	err = slm_at_twi_init();
 	if (err) {
@@ -649,6 +660,12 @@ void slm_at_uninit(void)
 	err = slm_at_httpc_uninit();
 	if (err) {
 		LOG_WRN("HTTP could not be uninitialized: %d", err);
+	}
+#endif
+#if defined(CONFIG_SLM_UI)
+	err = slm_ui_uninit();
+	if (err) {
+		LOG_ERR("Failed to uninit ui: %d", err);
 	}
 #endif
 #if defined(CONFIG_SLM_TWI)

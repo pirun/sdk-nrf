@@ -391,7 +391,7 @@ static void gpio_work_handle(struct k_work *work)
 					ui_led_set_state(LED_ID_DATA, UI_UNMUTE);
 					ui_led_set_state(LED_ID_SIGNAL, UI_UNMUTE);
 					ui_led_set_state(LED_ID_DIAG, UI_UNMUTE);
-					ret = get_stats();
+					ret = slm_stats_read();
 					if (ret != 0) {
 						LOG_ERR("Fail to get current stats");
 					}

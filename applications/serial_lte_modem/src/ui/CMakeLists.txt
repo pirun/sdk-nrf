@@ -1,0 +1,9 @@
+#
+# Copyright (c) 2021 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
+#
+
+zephyr_include_directories(.)
+target_sources_ifdef(CONFIG_SLM_UI app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slm_ui.c)
+target_sources_ifdef(CONFIG_SLM_UI app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slm_stats.c)

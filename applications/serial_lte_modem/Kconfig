@@ -10,6 +10,7 @@ menu "Nordic Serial LTE Modem"
 
 config SLM_CUSTOMIZED
 	bool "Flag for customized functionality"
+	select SLM_MOD_FLASH
 	help
 	  Enable this flag to include customized logic.
 
@@ -154,6 +155,7 @@ rsource "src/mqtt_c/Kconfig"
 rsource "src/http_c/Kconfig"
 rsource "src/twi/Kconfig"
 rsource "src/gpio/Kconfig"
+rsource "src/ui/Kconfig"
 
 module = SLM
 module-str = serial modem

@@ -13,6 +13,9 @@
 #include "slm_native_tls.h"
 #include "slm_at_host.h"
 #include "slm_at_tcp_proxy.h"
+#if defined(CONFIG_SLM_UI)
+#include "slm_ui.h"
+#endif
 
 LOG_MODULE_REGISTER(tcp_proxy, CONFIG_SLM_LOG_LEVEL);
 
@@ -289,7 +292,10 @@ static int do_tcp_client_connect(const char *url, uint16_t port)
 		ret = -errno;
 		goto exit;
 	}
-
+#if defined(CONFIG_SLM_MOD_FLASH)
+	/* Activate MODEM FlASH LED pin */
+	ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_CONNECTED);
+#endif
 	k_thread_create(&tcp_thread, tcp_thread_stack,
 			K_THREAD_STACK_SIZEOF(tcp_thread_stack),
 			tcpcli_thread_func, NULL, NULL, NULL,
@@ -360,6 +366,17 @@ static int do_tcp_send(const uint8_t *data, int datalen)
 	if (ret >= 0) {
 		sprintf(rsp_buf, "\r\n#XTCPSEND: %d\r\n", offset);
 		rsp_send(rsp_buf, strlen(rsp_buf));
+#if defined(CONFIG_SLM_UI)
+		if (offset > 0) {
+			if (offset < NET_IPV4_MTU/3) {
+				ui_led_set_state(LED_ID_DATA, UI_DATA_SLOW);
+			} else if (offset < 2*NET_IPV4_MTU/3) {
+				ui_led_set_state(LED_ID_DATA, UI_DATA_NORMAL);
+			} else {
+				ui_led_set_state(LED_ID_DATA, UI_DATA_FAST);
+			}
+		}
+#endif
 		return 0;
 	} else {
 		return ret;
@@ -397,6 +414,18 @@ static int do_tcp_send_datamode(const uint8_t *data, int datalen)
 		offset += ret;
 	}
 
+#if defined(CONFIG_SLM_UI)
+	if (offset > 0) {
+		if (offset < NET_IPV4_MTU/3) {
+			ui_led_set_state(LED_ID_DATA, UI_DATA_SLOW);
+		} else if (offset < 2*NET_IPV4_MTU/3) {
+			ui_led_set_state(LED_ID_DATA, UI_DATA_NORMAL);
+		} else {
+			ui_led_set_state(LED_ID_DATA, UI_DATA_FAST);
+		}
+	}
+#endif
+
 	return offset;
 }
 
@@ -412,6 +441,16 @@ static int tcp_data_save(uint8_t *data, uint32_t length)
 static void tcp_data_handle(uint8_t *data, uint32_t length)
 {
 	int ret;
+
+#if defined(CONFIG_SLM_UI)
+	if (length < NET_IPV4_MTU/3) {
+		ui_led_set_state(LED_ID_DATA, UI_DATA_SLOW);
+	} else if (length < 2*NET_IPV4_MTU/3) {
+		ui_led_set_state(LED_ID_DATA, UI_DATA_NORMAL);
+	} else {
+		ui_led_set_state(LED_ID_DATA, UI_DATA_FAST);
+	}
+#endif
 
 	if (proxy.datamode) {
 		rsp_send(data, length);
@@ -451,6 +490,9 @@ static void tcp_terminate_connection(int cause)
 	/* Send URC for server-initiated disconnect */
 	sprintf(rsp_buf, "\r\n#XTCPSVR: %d,\"disconnected\"\r\n", cause);
 	rsp_send(rsp_buf, strlen(rsp_buf));
+#if defined(CONFIG_SLM_MOD_FLASH)
+	ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_IDLE);
+#endif
 }
 
 static void terminate_connection_wk(struct k_work *work)
@@ -526,6 +568,10 @@ static int tcpsvr_input(int infd)
 		sprintf(rsp_buf, "\r\n#XTCPSVR: \"%s\",\"connected\"\r\n", peer_addr);
 		rsp_send(rsp_buf, strlen(rsp_buf));
 		proxy.sock_peer = ret;
+#if defined(CONFIG_SLM_MOD_FLASH)
+		/* Activate MODEM FlASH LED pin */
+		ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_CONNECTED);
+#endif
 		if (proxy.datamode) {
 			enter_datamode(tcp_datamode_callback);
 		}
@@ -708,6 +754,9 @@ exit:
 			rsp_send(rsp_buf, strlen(rsp_buf));
 		}
 	}
+#if defined(CONFIG_SLM_MOD_FLASH)
+	ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_IDLE);
+#endif
 }
 
 /**@brief handle AT#XTCPFILTER commands
