@@ -16,6 +16,10 @@
 #if defined(CONFIG_SLM_UI)
 #include "slm_ui.h"
 #endif
+#if defined(CONFIG_SLM_DIAG)
+#include "slm_diag.h"
+#include "slm_stats.h"
+#endif
 
 LOG_MODULE_REGISTER(tcp_proxy, CONFIG_SLM_LOG_LEVEL);
 
@@ -285,6 +289,12 @@ static int do_tcp_client_connect(const char *url, uint16_t port)
 		freeaddrinfo(result);
 	}
 
+#if defined(CONFIG_SLM_DIAG)
+	/* Clear connection fail */
+	slm_diag_clear_event(SLM_DIAG_DATA_CONNECTION_FAIL);
+	/* Clear call fail */
+	slm_diag_clear_event(SLM_DIAG_CALL_FAIL);
+#endif
 	ret = connect(proxy.sock, (struct sockaddr *)&remote,
 		sizeof(struct sockaddr_in));
 	if (ret < 0) {
@@ -313,6 +323,10 @@ exit:
 		slm_at_tcp_proxy_init();
 		sprintf(rsp_buf, "\r\n#XTCPCLI: %d\r\n", ret);
 		rsp_send(rsp_buf, strlen(rsp_buf));
+#if defined(CONFIG_SLM_DIAG)
+		/* Fail to create conntion */
+		slm_diag_set_event(SLM_DIAG_DATA_CONNECTION_FAIL);
+#endif
 	}
 
 	return ret;
@@ -535,6 +549,10 @@ static int tcpsvr_input(int infd)
 				(struct sockaddr *)&remote, &len);
 		if (ret < 0) {
 			LOG_ERR("accept() failed: %d", -errno);
+#if defined(CONFIG_SLM_DIAG)
+			/* Fail to create conntion */
+			slm_diag_set_event(SLM_DIAG_DATA_CONNECTION_FAIL);
+#endif
 			return -errno;
 		}
 		if (nfds >= MAX_POLL_FD) {
@@ -571,6 +589,12 @@ static int tcpsvr_input(int infd)
 #if defined(CONFIG_SLM_MOD_FLASH)
 		/* Activate MODEM FlASH LED pin */
 		ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_CONNECTED);
+#endif
+#if defined(CONFIG_SLM_DIAG)
+		/* Clear connection fail */
+		slm_diag_clear_event(SLM_DIAG_DATA_CONNECTION_FAIL);
+		/* Clear call fail */
+		slm_diag_clear_event(SLM_DIAG_CALL_FAIL);
 #endif
 		if (proxy.datamode) {
 			enter_datamode(tcp_datamode_callback);
@@ -631,6 +655,9 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 			if ((fds[i].revents & POLLHUP) == POLLHUP) {
 				LOG_WRN("POLLHUP: %d", i);
 				if (fds[i].fd == proxy.sock) {
+#if defined(CONFIG_SLM_DIAG)
+					slm_diag_set_event(SLM_DIAG_CALL_FAIL);
+#endif
 					ret = -ENETDOWN;
 					goto exit;
 				}
@@ -691,6 +718,9 @@ exit:
 static void tcpcli_thread_func(void *p1, void *p2, void *p3)
 {
 	int ret;
+#if defined(CONFIG_SLM_DIAG)
+	int nw_reg_1 = 0, nw_reg_2 = 0;
+#endif
 	bool in_datamode;
 
 	ARG_UNUSED(p1);
@@ -738,6 +768,15 @@ static void tcpcli_thread_func(void *p1, void *p2, void *p3)
 		}
 	}
 exit:
+#if defined(CONFIG_SLM_DIAG)
+	/* Workaround to check nw status changes and disconnection */
+	nw_reg_1 = slm_stats_get_nw_reg_status();
+	k_sleep(K_MSEC(10));
+	nw_reg_2 = slm_stats_get_nw_reg_status();
+	if (nw_reg_1 != nw_reg_2) {
+		slm_diag_set_event(SLM_DIAG_CALL_FAIL);
+	}
+#endif
 	if (proxy.sock != INVALID_SOCKET) {
 		ret = close(proxy.sock);
 		if (ret < 0) {

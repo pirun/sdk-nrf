@@ -140,6 +140,14 @@ int slm_ui_init(void)
 	k_work_init_delayable(&leds[LED_ID_MOD_LED].work, work_handler);
 #endif
 
+#if defined(CONFIG_SLM_DIAG)
+	err = slm_diag_init();
+	if (err) {
+		LOG_ERR("Failed to init diagnostic: %d", err);
+		return -EFAULT;
+	}
+#endif
+
 	err = slm_stats_init();
 	if (err != 0) {
 		LOG_ERR("SLM STATS could not be initialized: %d", err);
@@ -156,6 +164,13 @@ int slm_ui_uninit(void)
 	if (err != 0) {
 		LOG_WRN("SLM STATS could not be uninitialized: %d", err);
 	}
+
+#if defined(CONFIG_SLM_DIAG)
+	err = slm_diag_uninit();
+	if (err) {
+		LOG_ERR("Failed to uninit diagnostic: %d", err);
+	}
+#endif
 
 #if defined(CONFIG_SLM_UI_LTE_STATE)
 	leds[LED_ID_LTE].fn = LED_ID_LTE;

@@ -18,7 +18,7 @@
 #include "slm_diag.h"
 #endif
 #endif
-#if defined(CONFIG_SLM_WATCHDOG)
+#if defined(CONFIG_SLM_STATS_WATCHDOG)
 #include <drivers/watchdog.h>
 #endif
 
@@ -51,9 +51,9 @@ static K_THREAD_STACK_DEFINE(stats_thread_stack, STATS_THREAD_STACK_SIZE);
 
 static struct k_work_delayable batlvl_read;
 
-#if defined(CONFIG_SLM_WATCHDOG)
+#if defined(CONFIG_SLM_STATS_WATCHDOG)
 #define WDT_FEED_WORKER_DELAY_MS \
-	((CONFIG_SLM_WATCHDOG_TIMEOUT_MSEC)/2)
+	((CONFIG_SLM_STATS_WATCHDOG_TIMEOUT_MSEC)/2)
 
 struct wdt_data_storage {
 	const struct device *wdt_drv;
@@ -358,13 +358,13 @@ static int subscribe_stats(void)
 	return 0;
 }
 
-#if defined(CONFIG_SLM_WATCHDOG)
+#if defined(CONFIG_SLM_STATS_WATCHDOG)
 static int watchdog_timeout_install(struct wdt_data_storage *data)
 {
 	static const struct wdt_timeout_cfg wdt_settings = {
 			.window = {
 				.min = 0,
-				.max = CONFIG_SLM_WATCHDOG_TIMEOUT_MSEC,
+				.max = CONFIG_SLM_STATS_WATCHDOG_TIMEOUT_MSEC,
 			},
 			.callback = NULL,
 			.flags = WDT_FLAG_RESET_SOC
@@ -379,7 +379,7 @@ static int watchdog_timeout_install(struct wdt_data_storage *data)
 		return -EFAULT;
 	}
 	LOG_DBG("Watchdog timeout installed. Timeout: %d",
-		CONFIG_SLM_WATCHDOG_TIMEOUT_MSEC);
+		CONFIG_SLM_STATS_WATCHDOG_TIMEOUT_MSEC);
 	return 0;
 }
 
@@ -450,7 +450,7 @@ static void stats_thread_fn(void *arg1, void *arg2, void *arg3)
 	ARG_UNUSED(arg3);
 
 	while (stats.fd != INVALID_SOCKET) {
-#if defined(CONFIG_SLM_WATCHDOG)
+#if defined(CONFIG_SLM_STATS_WATCHDOG)
 		err = poll(&fds, 1, WDT_FEED_WORKER_DELAY_MS);
 		if (err < 0) {
 			LOG_ERR("ERROR: poll %d", errno);
@@ -707,6 +707,14 @@ static void batlvl_read_fn(struct k_work *work)
 				K_MSEC(CONFIG_SLM_STATS_BATTERY_INTERVAL));
 }
 
+#if defined(CONFIG_SLM_DIAG)
+int slm_stats_get_nw_reg_status(void)
+{
+	LOG_DBG("NW reg status: %d", (int)stats.reg_status);
+	return (int)stats.reg_status;
+}
+#endif
+
 int slm_stats_init(void)
 {
 	int err = -EINVAL;
@@ -719,7 +727,7 @@ int slm_stats_init(void)
 		LOG_ERR("Fail to start SLM stats. Error: %d", err);
 		return err;
 	}
-#if defined(CONFIG_SLM_WATCHDOG)
+#if defined(CONFIG_SLM_STATS_WATCHDOG)
 	err = watchdog_enable(&wdt_data);
 	if (err) {
 		LOG_ERR("Fail to enable SLM watchdog. Error: %d", err);

@@ -7,3 +7,4 @@
 zephyr_include_directories(.)
 target_sources_ifdef(CONFIG_SLM_UI app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slm_ui.c)
 target_sources_ifdef(CONFIG_SLM_UI app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slm_stats.c)
+target_sources_ifdef(CONFIG_SLM_DIAG app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/slm_diag.c)

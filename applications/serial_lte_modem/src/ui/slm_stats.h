@@ -37,6 +37,17 @@ int slm_stats_uninit(void);
  */
 int slm_stats_read(void);
 
+#if defined(CONFIG_SLM_DIAG)
+/**
+ * @brief get network and registration stats
+ *
+ * @retval 0 If the operation was successful.
+ *           Otherwise, a (negative) error code is returned.
+ */
+int slm_stats_get_nw_reg_status(void);
+#endif
+
+
 /** @} */
 
 #endif /* SLM_STATS_ */
