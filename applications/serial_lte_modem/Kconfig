@@ -12,6 +12,7 @@ config SLM_CUSTOMIZED
 	bool "Flag for customized functionality"
 	select SLM_MOD_FLASH
 	select SLM_STATS_WATCHDOG
+	select SLM_HW_REV
 	help
 	  Enable this flag to include customized logic.
 
@@ -157,6 +158,7 @@ rsource "src/http_c/Kconfig"
 rsource "src/twi/Kconfig"
 rsource "src/gpio/Kconfig"
 rsource "src/ui/Kconfig"
+rsource "src/hw_rev/Kconfig"
 
 module = SLM
 module-str = serial modem
