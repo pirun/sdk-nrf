@@ -101,6 +101,10 @@ extern struct at_param_list at_param_list;
 extern char rsp_buf[CONFIG_SLM_SOCKET_RX_MAX * 2];
 extern uint8_t rx_data[CONFIG_SLM_SOCKET_RX_MAX];
 
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+extern const struct device *gpio_dev;
+#endif
+
 extern int poweron_uart(bool sync_str);
 
 /** forward declaration of thread function **/
@@ -324,6 +328,14 @@ static int do_tcp_client_connect(const char *url, uint16_t port)
 		ret = -errno;
 		goto exit;
 	}
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+	/* Activate DCD pin */
+	ret = gpio_pin_set(gpio_dev, CONFIG_SLM_DCD_PIN, 1);
+	if (ret) {
+		LOG_ERR("Cannot activate DCD pin");
+		goto exit;
+	}
+#endif
 #if defined(CONFIG_SLM_MOD_FLASH)
 	/* Activate MODEM FlASH LED pin */
 	ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_CONNECTED);
@@ -542,6 +554,9 @@ static void tcp_data_handle(uint8_t *data, uint32_t length)
 
 static void tcp_terminate_connection(int cause)
 {
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+	int err = 0;
+#endif
 #if defined(CONFIG_SLM_CUSTOMIZED)
 	k_timer_stop(&conn_timer);
 #endif
@@ -554,6 +569,13 @@ static void tcp_terminate_connection(int cause)
 	/* Send URC for server-initiated disconnect */
 	sprintf(rsp_buf, "\r\n#XTCPSVR: %d,\"disconnected\"\r\n", cause);
 	rsp_send(rsp_buf, strlen(rsp_buf));
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+	/* De-activate DCD pin */
+	err = gpio_pin_set(gpio_dev, CONFIG_SLM_DCD_PIN, 0);
+	if (err) {
+		LOG_ERR("Cannot de-activate DCD pin");
+	}
+#endif
 #if defined(CONFIG_SLM_MOD_FLASH)
 	ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_IDLE);
 #endif
@@ -594,6 +616,21 @@ static int tcpsvr_input(int infd)
 		char peer_addr[INET_ADDRSTRLEN];
 		bool filtered = true;
 
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+		/* Toggle RI pins for pre-defined duration */
+		ret = gpio_pin_set(gpio_dev, CONFIG_SLM_RI_PIN, 1);
+		if (ret) {
+			LOG_ERR("Cannot write RI gpio high");
+			return ret;
+		}
+		k_sleep(K_MSEC(CONFIG_SLM_RI_ON_DURATION));
+		ret = gpio_pin_set(gpio_dev, CONFIG_SLM_RI_PIN, 0);
+		if (ret) {
+			LOG_ERR("Cannot write RI gpio low");
+			return ret;
+		}
+		k_sleep(K_MSEC(CONFIG_SLM_RI_OFF_DURATION));
+#endif
 		/* If server auto-accept is on, accept this connection.
 		 * Otherwise, accept the connection according to AT#TCPSVRAR
 		 */
@@ -653,6 +690,14 @@ static int tcpsvr_input(int infd)
 			}
 		}
 		proxy.sock_peer = ret;
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+		/* Activate DCD pin */
+		ret = gpio_pin_set(gpio_dev, CONFIG_SLM_DCD_PIN, 1);
+		if (ret) {
+			LOG_ERR("Cannot activate DCD pin");
+			return ret;
+		}
+#endif
 #if defined(CONFIG_SLM_MOD_FLASH)
 		/* Activate MODEM FlASH LED pin */
 		ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_CONNECTED);
@@ -666,6 +711,9 @@ static int tcpsvr_input(int infd)
 		if (proxy.datamode) {
 			enter_datamode(tcp_datamode_callback);
 		}
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+		k_sleep(K_MSEC(CONFIG_SLM_POST_RI_DURATION));
+#endif
 		sprintf(rsp_buf, "\r\n#XTCPSVR: \"%s\",\"connected\"\r\n",
 			peer_addr);
 		rsp_send(rsp_buf, strlen(rsp_buf));
@@ -885,6 +933,13 @@ exit:
 			rsp_send(rsp_buf, strlen(rsp_buf));
 		}
 	}
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+	/* De-activate DCD pin */
+	ret = gpio_pin_set(gpio_dev, CONFIG_SLM_DCD_PIN, 0);
+	if (ret) {
+		LOG_ERR("Cannot de-activate DCD pin");
+	}
+#endif
 #if defined(CONFIG_SLM_MOD_FLASH)
 	ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_IDLE);
 #endif

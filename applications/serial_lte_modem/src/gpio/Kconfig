@@ -7,3 +7,27 @@ config SLM_GPIO
 	bool "GPIO support in SLM"
 	default y
 	select GPIO
+
+config SLM_CUSTOMIZED_RS232
+	bool "Enable customized RS232 pin"
+	default SLM_CUSTOMIZED && SLM_GPIO
+
+config SLM_RI_PIN
+	int "Ring Indicator Pin"
+	default 20
+
+config SLM_RI_ON_DURATION
+	int "Duration of the Ring Indicator Pin to be turned on in ms"
+	default 1500
+
+config SLM_RI_OFF_DURATION
+	int "Duration of the Ring Indicator Pin to be turned off in ms"
+	default 1500
+
+config SLM_POST_RI_DURATION
+	int "Duration of the wait after Ring Indicator to send URC"
+	default 500
+
+config SLM_DCD_PIN
+	int "DCD Pin"
+	default 26

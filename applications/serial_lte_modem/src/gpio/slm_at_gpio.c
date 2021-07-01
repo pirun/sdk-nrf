@@ -11,8 +11,6 @@
 #include "slm_at_gpio.h"
 #if defined(CONFIG_SLM_UI)
 #include "slm_ui.h"
-#endif
-#if defined(CONFIG_SLM_STATS)
 #include "slm_stats.h"
 #endif
 #if defined(CONFIG_SLM_DIAG)
@@ -447,6 +445,19 @@ int slm_at_gpio_init(void)
 		LOG_ERR("GPIO_0 bind error");
 		err = -EIO;
 	}
+
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+	err = gpio_pin_configure(gpio_dev, CONFIG_SLM_RI_PIN, GPIO_OUTPUT);
+	if (err) {
+		LOG_ERR("CONFIG_SLM_RI_PIN config error: %d", err);
+		return err;
+	}
+	err = gpio_pin_configure(gpio_dev, CONFIG_SLM_DCD_PIN, GPIO_OUTPUT);
+	if (err) {
+		LOG_ERR("CONFIG_SLM_DCD_PIN config error: %d", err);
+		return err;
+	}
+#endif
 
 	k_work_init(&gpio_work, gpio_work_handle);
 
