@@ -315,6 +315,8 @@ int handle_at_tcp_server(enum at_cmd_type cmd_type);
 int handle_at_tcp_client(enum at_cmd_type cmd_type);
 int handle_at_tcp_send(enum at_cmd_type cmd_type);
 int handle_at_tcp_recv(enum at_cmd_type cmd_type);
+int handle_at_tcp_server_auto_accept(enum at_cmd_type cmd_type);
+int handle_at_tcp_server_accept_reject(enum at_cmd_type cmd_type);
 
 /* UDP proxy commands */
 int handle_at_udp_server(enum at_cmd_type cmd_type);
@@ -403,6 +405,8 @@ static struct slm_at_cmd {
 	{"AT#XTCPCLI", handle_at_tcp_client},
 	{"AT#XTCPSEND", handle_at_tcp_send},
 	{"AT#XTCPRECV", handle_at_tcp_recv},
+	{"AT#XTCPSVRAA", handle_at_tcp_server_auto_accept},
+	{"AT#XTCPSVRAR", handle_at_tcp_server_accept_reject},
 
 	/* UDP proxy commands */
 	{"AT#XUDPSVR", handle_at_udp_server},
