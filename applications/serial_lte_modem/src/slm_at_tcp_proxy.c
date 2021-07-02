@@ -69,6 +69,9 @@ RING_BUF_DECLARE(data_buf, CONFIG_SLM_SOCKET_RX_MAX * 2);
 static struct k_thread tcp_thread;
 static struct k_work disconnect_work;
 static K_THREAD_STACK_DEFINE(tcp_thread_stack, THREAD_STACK_SIZE);
+#if defined(CONFIG_SLM_CUSTOMIZED)
+K_TIMER_DEFINE(conn_timer, NULL, NULL);
+#endif
 
 static struct sockaddr_in remote;
 static struct tcp_proxy_t {
@@ -80,6 +83,9 @@ static struct tcp_proxy_t {
 	bool filtermode;	/* Filtering mode flag */
 	bool aa;		/* Auto accept mode flag*/
 	uint16_t ar;		/* accept-reject flag*/
+#if defined(CONFIG_SLM_CUSTOMIZED)
+	uint16_t timeout;	/* Peer connection timeout */
+#endif
 } proxy;
 static struct pollfd fds[MAX_POLL_FD];
 static int nfds;
@@ -369,6 +375,9 @@ static int do_tcp_send(const uint8_t *data, int datalen)
 		sock = proxy.sock;
 	} else if (proxy.role == AT_TCP_ROLE_SERVER && proxy.sock_peer != INVALID_SOCKET) {
 		sock = proxy.sock_peer;
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		k_timer_stop(&conn_timer);
+#endif
 	} else {
 		LOG_ERR("Not connected yet");
 		return -EINVAL;
@@ -396,6 +405,13 @@ static int do_tcp_send(const uint8_t *data, int datalen)
 	if (ret >= 0) {
 		sprintf(rsp_buf, "\r\n#XTCPSEND: %d\r\n", offset);
 		rsp_send(rsp_buf, strlen(rsp_buf));
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		/* restart activity timer */
+		if (proxy.role == AT_TCP_ROLE_SERVER) {
+			k_timer_start(&conn_timer, K_SECONDS(proxy.timeout),
+				      K_NO_WAIT);
+		}
+#endif
 #if defined(CONFIG_SLM_UI)
 		if (offset > 0) {
 			if (offset < NET_IPV4_MTU/3) {
@@ -423,6 +439,9 @@ static int do_tcp_send_datamode(const uint8_t *data, int datalen)
 		sock = proxy.sock;
 	} else if (proxy.role == AT_TCP_ROLE_SERVER && proxy.sock_peer != INVALID_SOCKET) {
 		sock = proxy.sock_peer;
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		k_timer_stop(&conn_timer);
+#endif
 	} else {
 		LOG_ERR("Not connected yet");
 		return -EINVAL;
@@ -439,11 +458,23 @@ static int do_tcp_send_datamode(const uint8_t *data, int datalen)
 					k_work_submit(&disconnect_work);
 				}
 			}
+#if defined(CONFIG_SLM_CUSTOMIZED)
+			ret = -errno;
+#endif
 			break;
 		}
 		offset += ret;
 	}
 
+#if defined(CONFIG_SLM_CUSTOMIZED)
+	if (ret >= 0) {
+		/* restart activity timer */
+		if (proxy.role == AT_TCP_ROLE_SERVER) {
+			k_timer_start(&conn_timer, K_SECONDS(proxy.timeout), K_NO_WAIT);
+		}
+	}
+
+#endif
 #if defined(CONFIG_SLM_UI)
 	if (offset > 0) {
 		if (offset < NET_IPV4_MTU/3) {
@@ -511,6 +542,9 @@ static void tcp_data_handle(uint8_t *data, uint32_t length)
 
 static void tcp_terminate_connection(int cause)
 {
+#if defined(CONFIG_SLM_CUSTOMIZED)
+	k_timer_stop(&conn_timer);
+#endif
 	if (proxy.datamode) {
 		(void)exit_datamode();
 	}
@@ -639,7 +673,14 @@ static int tcpsvr_input(int infd)
 		fds[nfds].fd = proxy.sock_peer;
 		fds[nfds].events = POLLIN;
 		nfds++;
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		/* Start a one-shot timer to close the connection */
+		k_timer_start(&conn_timer, K_SECONDS(proxy.timeout), K_NO_WAIT);
+#endif
 	} else {
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		k_timer_stop(&conn_timer);
+#endif
 		ret = recv(fds[infd].fd, (void *)rx_data, sizeof(rx_data), 0);
 		if (ret > 0) {
 			tcp_data_handle(rx_data, ret);
@@ -647,6 +688,11 @@ static int tcpsvr_input(int infd)
 		if (ret < 0) {
 			LOG_WRN("recv() error: %d", -errno);
 		}
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		/* Restart conn timer */
+		LOG_DBG("restart timer: POLLIN");
+		k_timer_start(&conn_timer, K_SECONDS(proxy.timeout), K_NO_WAIT);
+#endif
 	}
 
 	return ret;
@@ -667,6 +713,13 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 	nfds = 1;
 	ring_buf_reset(&data_buf);
 	while (true) {
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		if (proxy.timeout > 0 &&
+			k_timer_status_get(&conn_timer) > 0) {
+			LOG_WRN("Connection timeout");
+			tcp_terminate_connection(-ETIMEDOUT);
+		}
+#endif
 		ret = poll(fds, nfds, MSEC_PER_SEC * CONFIG_SLM_TCP_POLL_TIME);
 		if (ret < 0) {  /* IO error */
 			LOG_WRN("poll() error: %d", -errno);
@@ -719,6 +772,9 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 	}
 exit:
 	if (proxy.sock_peer != INVALID_SOCKET) {
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		k_timer_stop(&conn_timer);
+#endif
 		ret = close(proxy.sock_peer);
 		if (ret < 0) {
 			LOG_WRN("close(%d) fail: %d", proxy.sock_peer, -errno);
@@ -907,11 +963,19 @@ int handle_at_tcp_filter(enum at_cmd_type cmd_type)
 	return err;
 }
 
+#if defined(CONFIG_SLM_CUSTOMIZED)
+/**@brief handle AT#XTCPSVR commands
+ *  AT#XTCPSVR=<op>[,<port>,<timeout>,[sec_tag]]
+ *  AT#XTCPSVR?
+ *  AT#XTCPSVR=?
+ */
+#else
 /**@brief handle AT#XTCPSVR commands
  *  AT#XTCPSVR=<op>[,<port>[,[sec_tag]]
  *  AT#XTCPSVR?
  *  AT#XTCPSVR=?
  */
+#endif
 int handle_at_tcp_server(enum at_cmd_type cmd_type)
 {
 	int err = -EINVAL;
@@ -934,9 +998,22 @@ int handle_at_tcp_server(enum at_cmd_type cmd_type)
 			if (err) {
 				return err;
 			}
+#if defined(CONFIG_SLM_CUSTOMIZED)
+			if (param_count > 3) {
+				err = at_params_unsigned_short_get(&at_param_list, 3,
+								   &proxy.timeout);
+				if (err) {
+					return err;
+				}
+			}
+			if (param_count > 4) {
+				at_params_unsigned_int_get(&at_param_list, 4, &proxy.sec_tag);
+			}
+#else
 			if (param_count > 3) {
 				at_params_unsigned_int_get(&at_param_list, 3, &proxy.sec_tag);
 			}
+#endif
 #if defined(CONFIG_SLM_DATAMODE_HWFC)
 			if (op == AT_SERVER_START_WITH_DATAMODE && !check_uart_flowcontrol()) {
 				LOG_ERR("Data mode requires HWFC.");
@@ -952,15 +1029,32 @@ int handle_at_tcp_server(enum at_cmd_type cmd_type)
 		} break;
 
 	case AT_CMD_TYPE_READ_COMMAND:
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		if (proxy.sock != INVALID_SOCKET &&
+		    proxy.role == AT_TCP_ROLE_SERVER) {
+			sprintf(rsp_buf, "\r\n#XTCPSVR: %d,%d,%d,%d\r\n",
+				proxy.sock, proxy.sock_peer, proxy.timeout, proxy.datamode);
+		} else {
+			sprintf(rsp_buf, "\r\n#XTCPSVR: %d,%d\r\n",
+				INVALID_SOCKET, INVALID_SOCKET);
+		}
+#else
 		sprintf(rsp_buf, "\r\n#XTCPSVR: %d,%d,%d\r\n",
 			proxy.sock, proxy.sock_peer, proxy.datamode);
+#endif
 		rsp_send(rsp_buf, strlen(rsp_buf));
 		err = 0;
 		break;
 
 	case AT_CMD_TYPE_TEST_COMMAND:
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		sprintf(rsp_buf, "\r\n#XTCPSVR: (%d,%d,%d),<port>,<timeout>,<sec_tag>\r\n",
+			AT_SERVER_STOP, AT_SERVER_START,
+			AT_SERVER_START_WITH_DATAMODE);
+#else
 		sprintf(rsp_buf, "\r\n#XTCPSVR: (%d,%d,%d),<port>,<sec_tag>\r\n",
 			AT_SERVER_STOP, AT_SERVER_START, AT_SERVER_START_WITH_DATAMODE);
+#endif
 		rsp_send(rsp_buf, strlen(rsp_buf));
 		err = 0;
 		break;
@@ -1223,6 +1317,9 @@ int slm_at_tcp_proxy_init(void)
 	proxy.datamode = false;
 	proxy.aa = AT_TCP_SVR_AA_ON;
 	proxy.ar = AT_TCP_SVR_AR_UNKNOWN;
+#if defined(CONFIG_SLM_CUSTOMIZED)
+	proxy.timeout = CONFIG_SLM_TCP_CONN_TIME;
+#endif
 	proxy.sec_tag = INVALID_SEC_TAG;
 	nfds = 0;
 	for (int i = 0; i < MAX_POLL_FD; i++) {
