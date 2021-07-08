@@ -64,6 +64,21 @@ enum slm_tcp_proxy_ar_operation {
 	AT_TCP_SVR_AR_UNKNOWN
 };
 
+/**@brief TCP Proxy server state. */
+enum slm_tcpsvr_state {
+	TCPSVR_INIT,
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+	TCPSVR_RI_ON,
+	TCPSVR_RI_OFF,
+	TCPSVR_POST_RI,
+#endif
+	TCPSVR_CONNECTING,
+	TCPSVR_CONNECTED,
+	TCPSVR_TERMINATING
+};
+
+static enum slm_tcpsvr_state tcpsvr_state;
+static struct k_work_delayable tcpsvr_state_work;
 static char ip_allowlist[CONFIG_SLM_TCP_FILTER_SIZE][INET_ADDRSTRLEN];
 RING_BUF_DECLARE(data_buf, CONFIG_SLM_SOCKET_RX_MAX * 2);
 static struct k_thread tcp_thread;
@@ -579,6 +594,7 @@ static void tcp_terminate_connection(int cause)
 #if defined(CONFIG_SLM_MOD_FLASH)
 	ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_IDLE);
 #endif
+	tcpsvr_state = TCPSVR_INIT;
 }
 
 static void terminate_connection_wk(struct k_work *work)
@@ -616,21 +632,6 @@ static int tcpsvr_input(int infd)
 		char peer_addr[INET_ADDRSTRLEN];
 		bool filtered = true;
 
-#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
-		/* Toggle RI pins for pre-defined duration */
-		ret = gpio_pin_set(gpio_dev, CONFIG_SLM_RI_PIN, 1);
-		if (ret) {
-			LOG_ERR("Cannot write RI gpio high");
-			return ret;
-		}
-		k_sleep(K_MSEC(CONFIG_SLM_RI_ON_DURATION));
-		ret = gpio_pin_set(gpio_dev, CONFIG_SLM_RI_PIN, 0);
-		if (ret) {
-			LOG_ERR("Cannot write RI gpio low");
-			return ret;
-		}
-		k_sleep(K_MSEC(CONFIG_SLM_RI_OFF_DURATION));
-#endif
 		/* If server auto-accept is on, accept this connection.
 		 * Otherwise, accept the connection according to AT#TCPSVRAR
 		 */
@@ -690,42 +691,18 @@ static int tcpsvr_input(int infd)
 			}
 		}
 		proxy.sock_peer = ret;
-#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
-		/* Activate DCD pin */
-		ret = gpio_pin_set(gpio_dev, CONFIG_SLM_DCD_PIN, 1);
-		if (ret) {
-			LOG_ERR("Cannot activate DCD pin");
-			return ret;
-		}
-#endif
-#if defined(CONFIG_SLM_MOD_FLASH)
-		/* Activate MODEM FlASH LED pin */
-		ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_CONNECTED);
-#endif
-#if defined(CONFIG_SLM_DIAG)
-		/* Clear connection fail */
-		slm_diag_clear_event(SLM_DIAG_DATA_CONNECTION_FAIL);
-		/* Clear call fail */
-		slm_diag_clear_event(SLM_DIAG_CALL_FAIL);
-#endif
-		if (proxy.datamode) {
-			enter_datamode(tcp_datamode_callback);
-		}
-#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
-		k_sleep(K_MSEC(CONFIG_SLM_POST_RI_DURATION));
-#endif
-		sprintf(rsp_buf, "\r\n#XTCPSVR: \"%s\",\"connected\"\r\n",
-			peer_addr);
-		rsp_send(rsp_buf, strlen(rsp_buf));
 		LOG_DBG("New connection - %d", proxy.sock_peer);
 		fds[nfds].fd = proxy.sock_peer;
 		fds[nfds].events = POLLIN;
 		nfds++;
-#if defined(CONFIG_SLM_CUSTOMIZED)
-		/* Start a one-shot timer to close the connection */
-		k_timer_start(&conn_timer, K_SECONDS(proxy.timeout), K_NO_WAIT);
-#endif
+		sprintf(rsp_buf, "\r\n#XTCPSVR: \"%s\",\"connected\"\r\n",
+			peer_addr);
+		k_work_reschedule(&tcpsvr_state_work, K_MSEC(10));
 	} else {
+		if (tcpsvr_state < TCPSVR_CONNECTED) {
+			LOG_DBG("Ignore input data if not connected.");
+			return 0;
+		}
 #if defined(CONFIG_SLM_CUSTOMIZED)
 		k_timer_stop(&conn_timer);
 #endif
@@ -780,6 +757,12 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 		current_size = nfds;
 		for (int i = 0; i < current_size; i++) {
 			LOG_DBG("Poll events 0x%08x", fds[i].revents);
+			if ((fds[i].revents & POLLIN) == POLLIN) {
+				ret = tcpsvr_input(i);
+				if (ret < 0) {
+					LOG_WRN("tcpsvr_input error: %d", ret);
+				}
+			}
 			if ((fds[i].revents & POLLERR) == POLLERR) {
 				LOG_ERR("POLLERR: %d", i);
 				if (fds[i].fd == proxy.sock) {
@@ -790,7 +773,6 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 				continue;
 			}
 			if ((fds[i].revents & POLLHUP) == POLLHUP) {
-				LOG_WRN("POLLHUP: %d", i);
 				if (fds[i].fd == proxy.sock) {
 #if defined(CONFIG_SLM_DIAG)
 					slm_diag_set_event(SLM_DIAG_CALL_FAIL);
@@ -798,8 +780,11 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 					ret = -ENETDOWN;
 					goto exit;
 				}
-				tcp_terminate_connection(-ECONNRESET);
-				continue;
+				if (tcpsvr_state == TCPSVR_CONNECTED) {
+					/* Change state to avoid duplicated POLLHUP event */
+					tcpsvr_state = TCPSVR_TERMINATING;
+					k_work_reschedule(&tcpsvr_state_work, K_MSEC(100));
+				}
 			}
 			if ((fds[i].revents & POLLNVAL) == POLLNVAL) {
 				LOG_WRN("POLLNVAL: %d", i);
@@ -809,12 +794,6 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 				}
 				tcp_terminate_connection(-ECONNABORTED);
 				continue;
-			}
-			if ((fds[i].revents & POLLIN) == POLLIN) {
-				ret = tcpsvr_input(i);
-				if (ret < 0) {
-					LOG_WRN("tcpsvr_input error: %d", ret);
-				}
 			}
 		}
 	}
@@ -1362,6 +1341,86 @@ int handle_at_tcp_recv(enum at_cmd_type cmd_type)
 	return err;
 }
 
+static void tcpsvr_state_work_fn(struct k_work *work)
+{
+	LOG_DBG("Current TCPSVR state: %d", tcpsvr_state);
+	switch (tcpsvr_state) {
+	case TCPSVR_INIT:
+	{
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+		/* Toggle RI pins for pre-defined duration */
+		if (gpio_pin_set(gpio_dev, CONFIG_SLM_RI_PIN, 1) != 0) {
+			LOG_ERR("Cannot write RI gpio high");
+		}
+		tcpsvr_state = TCPSVR_RI_ON;
+		k_work_reschedule(&tcpsvr_state_work, K_MSEC(CONFIG_SLM_RI_ON_DURATION));
+#else
+		tcpsvr_state = TCPSVR_CONNECTING;
+		k_work_reschedule(&tcpsvr_state_work, K_MSEC(10));
+#endif
+	} break;
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+	case TCPSVR_RI_ON:
+	{
+		/* Toggle RI pins for pre-defined duration */
+		if (gpio_pin_set(gpio_dev, CONFIG_SLM_RI_PIN, 0) != 0) {
+			LOG_ERR("Cannot write RI gpio low");
+		}
+		tcpsvr_state = TCPSVR_RI_OFF;
+		k_work_reschedule(&tcpsvr_state_work, K_MSEC(CONFIG_SLM_RI_OFF_DURATION));
+	} break;
+	case TCPSVR_RI_OFF:
+	{
+		tcpsvr_state = TCPSVR_POST_RI;
+		k_work_reschedule(&tcpsvr_state_work, K_MSEC(CONFIG_SLM_POST_RI_DURATION));
+	} break;
+	case TCPSVR_POST_RI:
+	{
+		tcpsvr_state = TCPSVR_CONNECTING;
+		k_work_reschedule(&tcpsvr_state_work, K_MSEC(10));
+	} break;
+#endif /* CONFIG_SLM_CUSTOMIZED_RS232 */
+	case TCPSVR_CONNECTING:
+	{
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+		/* Activate DCD pin */
+		if (gpio_pin_set(gpio_dev, CONFIG_SLM_DCD_PIN, 1) != 0) {
+			LOG_ERR("Cannot activate DCD pin");
+			return;
+		}
+#endif
+#if defined(CONFIG_SLM_MOD_FLASH)
+		/* Activate MODEM FlASH LED pin */
+		ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_CONNECTED);
+#endif
+#if defined(CONFIG_SLM_DIAG)
+		/* Clear connection fail */
+		slm_diag_clear_event(SLM_DIAG_DATA_CONNECTION_FAIL);
+		/* Clear call fail */
+		slm_diag_clear_event(SLM_DIAG_CALL_FAIL);
+#endif
+		if (proxy.datamode) {
+			enter_datamode(tcp_datamode_callback);
+		}
+		rsp_send(rsp_buf, strlen(rsp_buf));
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		/* Start a one-shot timer to close the connection */
+		k_timer_start(&conn_timer, K_SECONDS(proxy.timeout), K_NO_WAIT);
+#endif
+		tcpsvr_state = TCPSVR_CONNECTED;
+	} break;
+	case TCPSVR_TERMINATING:
+	{
+		LOG_DBG("Terminate connection - peer reset");
+		tcp_terminate_connection(-ECONNRESET);
+	} break;
+
+	default:
+		break;
+	}
+	LOG_DBG("New TCPSVR state: %d", tcpsvr_state);
+}
+
 /**@brief API to initialize TCP proxy AT commands handler
  */
 int slm_at_tcp_proxy_init(void)
@@ -1383,6 +1442,8 @@ int slm_at_tcp_proxy_init(void)
 	memset(ip_allowlist, 0x00, sizeof(ip_allowlist));
 	proxy.filtermode = false;
 	k_work_init(&disconnect_work, terminate_connection_wk);
+	tcpsvr_state = 0;
+	k_work_init_delayable(&tcpsvr_state_work, tcpsvr_state_work_fn);
 
 	return 0;
 }
