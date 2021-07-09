@@ -33,7 +33,9 @@ static void work_handler(struct k_work *work)
 		LOG_ERR("Fail to get UI pin");
 		return;
 	}
+#if defined(CONFIG_SLM_UI_DEBUG)
 	LOG_DBG("Set UI pin %d state %d", slm_pin, effect_step->led_on);
+#endif
 	gpio_pin_set(gpio_dev, (gpio_pin_t)slm_pin, effect_step->led_on);
 
 	led->effect_substep++;
@@ -70,7 +72,9 @@ static void led_update(struct led *led)
 	led->effect_loop = 0;
 
 	if (!led->effect) {
+#if defined(CONFIG_SLM_UI_DEBUG)
 		LOG_DBG("No effect set");
+#endif
 		return;
 	}
 
@@ -82,17 +86,23 @@ static void led_update(struct led *led)
 
 		k_work_reschedule(&led->work, K_MSEC(next_delay));
 	} else {
+#if defined(CONFIG_SLM_UI_DEBUG)
 		LOG_DBG("LED effect with no effect");
+#endif
 	}
 }
 
 void ui_led_set_state(enum led_id id, enum ui_led_state new_state)
 {
+#if defined(CONFIG_SLM_UI_DEBUG)
 	LOG_DBG("LED %d state change to: %d", id, new_state);
+#endif
 	/* If state is mute, only accept unmute as new state */
 	if (leds[id].state == UI_MUTE) {
 		if (new_state != UI_UNMUTE) {
+#if defined(CONFIG_SLM_UI_DEBUG)
 			LOG_DBG("Ignore while in mute state");
+#endif
 			return;
 		}
 	}

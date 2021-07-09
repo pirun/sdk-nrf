@@ -7,6 +7,9 @@ config SLM_UI
 	bool "Enable SLM UI"
 	depends on SLM_GPIO
 
+config SLM_UI_DEBUG
+	bool "Enable debug log of SLM UI"
+
 config SLM_UI_LTE_STATE
 	bool "LTE connection state pin option"
 	default y
