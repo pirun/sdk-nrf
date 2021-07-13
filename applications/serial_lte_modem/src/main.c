@@ -17,6 +17,7 @@
 #include <hal/nrf_regulators.h>
 #include <hal/nrf_uarte.h>
 #include <modem/nrf_modem_lib.h>
+#include <modem/at_notif.h>
 #include <dfu/mcuboot.h>
 #include <dfu/dfu_target.h>
 #include <sys/reboot.h>
@@ -222,10 +223,15 @@ void start_execute(void)
 	err = nrf_modem_lib_init(NORMAL_MODE);
 	handle_nrf_modem_lib_init_ret(err);
 
-	/* Init at_cmd lib */
+	/* Init at_cmd and at_notify lib */
 	err = at_cmd_init();
 	if (err) {
 		LOG_ERR("Failed to init at cmd: %d", err);
+		return;
+	}
+	err = at_notif_init();
+	if (err) {
+		LOG_ERR("Failed to init at notify: %d", err);
 		return;
 	}
 
