@@ -86,6 +86,7 @@ static struct k_work disconnect_work;
 static K_THREAD_STACK_DEFINE(tcp_thread_stack, THREAD_STACK_SIZE);
 #if defined(CONFIG_SLM_CUSTOMIZED)
 K_TIMER_DEFINE(conn_timer, NULL, NULL);
+static K_SEM_DEFINE(tcpsvr_sem, 0, 1);
 #endif
 
 static struct sockaddr_in remote;
@@ -255,10 +256,6 @@ exit:
 
 static int do_tcp_server_stop(void)
 {
-	if (proxy.sock_peer != INVALID_SOCKET) {
-		close(proxy.sock_peer);
-	}
-
 	if (proxy.sock == INVALID_SOCKET) {
 		LOG_WRN("Proxy server is not running");
 		return -EINVAL;
@@ -790,6 +787,9 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 				LOG_WRN("POLLNVAL: %d", i);
 				if (fds[i].fd == proxy.sock) {
 					ret = 0;
+					if (proxy.sock_peer != INVALID_SOCKET) {
+						tcp_terminate_connection(-ECONNABORTED);
+					}
 					goto exit;
 				}
 				tcp_terminate_connection(-ECONNABORTED);
@@ -831,6 +831,9 @@ exit:
 			rsp_send(rsp_buf, strlen(rsp_buf));
 		}
 	}
+#if defined(CONFIG_SLM_CUSTOMIZED)
+	k_sem_give(&tcpsvr_sem);
+#endif
 }
 
 /* TCP client thread */
@@ -1060,6 +1063,11 @@ int handle_at_tcp_server(enum at_cmd_type cmd_type)
 			}
 		} else if (op == AT_SERVER_STOP) {
 			err = do_tcp_server_stop();
+#if defined(CONFIG_SLM_CUSTOMIZED)
+			if (err == 0) {
+				k_sem_take(&tcpsvr_sem, K_FOREVER);
+			}
+#endif
 		} break;
 
 	case AT_CMD_TYPE_READ_COMMAND:
