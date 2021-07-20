@@ -247,6 +247,8 @@ int slm_uart_configure(uint32_t baudrate, uint8_t hwfc)
 					DT_PROP(DT_NODELABEL(uart0), cts_pin));
 	} else {
 		nrf_uarte_hwfc_pins_disconnect(NRF_UARTE0);
+		nrf_gpio_pin_clear(DT_PROP(DT_NODELABEL(uart0), rts_pin));
+		nrf_gpio_cfg_output(DT_PROP(DT_NODELABEL(uart0), rts_pin));
 	}
 #endif
 #if defined(CONFIG_UART_2_NRF_HW_ASYNC_TIMER)
@@ -256,6 +258,8 @@ int slm_uart_configure(uint32_t baudrate, uint8_t hwfc)
 					DT_PROP(DT_NODELABEL(uart2), cts_pin));
 	} else {
 		nrf_uarte_hwfc_pins_disconnect(NRF_UARTE2);
+		nrf_gpio_pin_clear(DT_PROP(DT_NODELABEL(uart2), rts_pin));
+		nrf_gpio_cfg_output(DT_PROP(DT_NODELABEL(uart2), rts_pin));
 	}
 #endif
 #endif
