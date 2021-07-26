@@ -716,6 +716,8 @@ static void uart_callback(const struct device *dev, struct uart_event *evt, void
 		LOG_DBG("RX_DISABLED");
 		if (slm_operation_mode == SLM_DATA_MODE) {
 			datamode_rx_disabled = true;
+			/* flush data in ring-buffer, if any */
+			k_work_submit(&raw_send_work);
 		}
 		if (enable_rx_retry && !uart_recovery_pending) {
 			k_work_schedule(&uart_recovery_work, K_MSEC(UART_ERROR_DELAY_MS));
