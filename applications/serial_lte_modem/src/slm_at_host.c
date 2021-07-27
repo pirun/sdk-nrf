@@ -11,6 +11,7 @@
 #include <drivers/uart.h>
 #include <hal/nrf_uarte.h>
 #include <sys/ring_buffer.h>
+#include <sys/util.h>
 #include <string.h>
 #include <init.h>
 #include <modem/at_cmd.h>
@@ -49,6 +50,8 @@ LOG_MODULE_REGISTER(at_host, CONFIG_SLM_LOG_LEVEL);
 #define UART_RX_TIMEOUT_MS      1
 #define UART_ERROR_DELAY_MS     500
 #define UART_RX_MARGIN_MS       10
+
+#define HEXDUMP_DATAMODE_MAX    16
 
 static enum slm_operation_modes {
 	SLM_AT_COMMAND_MODE,  /* AT command host or bridge */
@@ -156,7 +159,7 @@ int enter_datamode(slm_datamode_handler_t handler)
 		return -EINVAL;
 	}
 
-	ring_buf_init(&data_rb, sizeof(at_buf) / 2, at_buf);
+	ring_buf_init(&data_rb, sizeof(at_buf), at_buf);
 	datamode_handler = handler;
 	slm_operation_mode = SLM_DATA_MODE;
 	LOG_INF("Enter datamode");
@@ -305,23 +308,31 @@ static void response_handler(void *context, const char *response)
 
 static void raw_send(struct k_work *work)
 {
+	uint8_t *data;
+	uint32_t size_send, size_sent;
+
 	ARG_UNUSED(work);
 
-	const uint32_t tx_buf_size = sizeof(at_buf) / 2;
-	uint32_t size = ring_buf_get(&data_rb, &at_buf[tx_buf_size], tx_buf_size);
-
-	if (size > 0) {
-		LOG_INF("Raw send %d", size);
-		LOG_HEXDUMP_DBG(&at_buf[tx_buf_size], size, "RX");
+	size_send = ring_buf_get_claim(&data_rb, &data, sizeof(at_buf));
+	if (size_send > 0) {
+		LOG_INF("Raw send %d", size_send);
+		LOG_HEXDUMP_DBG(data, MIN(size_send, HEXDUMP_DATAMODE_MAX), "RX-DATAMODE");
 		if (datamode_handler) {
-			(void)datamode_handler(DATAMODE_SEND, &at_buf[tx_buf_size], size);
+			size_sent = datamode_handler(DATAMODE_SEND, data, size_send);
+			if (size_sent > 0) {
+				(void)ring_buf_get_finish(&data_rb, size_sent);
+			} else if (size_sent == 0) {
+				(void)ring_buf_get_finish(&data_rb, size_send);
+			} else {
+				LOG_WRN("Raw send failed");
+			}
 		} else {
 			LOG_WRN("no handler, data dropped");
 		}
 	}
 	/* resume UART RX in case of stopped by buffer full */
 	if (datamode_rx_disabled) {
-		uart_receive();
+		(void)uart_receive();
 		datamode_rx_disabled = false;
 	}
 }

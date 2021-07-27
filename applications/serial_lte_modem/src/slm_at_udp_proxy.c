@@ -344,7 +344,7 @@ static int do_udp_send_datamode(const uint8_t *data, int datalen)
 	}
 
 #endif
-	return offset;
+	return (offset > 0) ? offset : -1;
 }
 
 static void udp_thread_func(void *p1, void *p2, void *p3)

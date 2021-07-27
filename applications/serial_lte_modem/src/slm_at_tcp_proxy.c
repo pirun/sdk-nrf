@@ -511,7 +511,7 @@ static int do_tcp_send_datamode(const uint8_t *data, int datalen)
 	}
 #endif
 
-	return offset;
+	return (offset > 0) ? offset : -1;
 }
 
 static int tcp_data_save(uint8_t *data, uint32_t length)
