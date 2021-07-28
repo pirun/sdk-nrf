@@ -120,7 +120,7 @@ int do_gpio_pin_configure_set(gpio_pin_t pin, uint16_t fn)
 	struct slm_gpio_pin_t *slm_gpio_pin = NULL, *cur = NULL, *next = NULL;
 	gpio_port_pins_t pin_mask = 0;
 
-	LOG_DBG("pin:%hu fn:%hu", pin, fn);
+	LOG_INF("pin:%hu fn:%hu", pin, fn);
 
 	/* Verify pin correctness */
 	if (pin > MAX_GPIO_PIN) {
@@ -160,7 +160,6 @@ int do_gpio_pin_configure_set(gpio_pin_t pin, uint16_t fn)
 		sys_slist_append(&slm_gpios, &slm_gpio_pin->node);
 	}
 
-	LOG_INF("Configure pin: %d with flags: %X", pin, gpio_flags);
 	err = gpio_pin_configure(gpio_dev, pin, gpio_flags);
 	if (err) {
 		LOG_ERR("GPIO_0 config error: %d", err);

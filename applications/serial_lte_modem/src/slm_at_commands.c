@@ -668,7 +668,6 @@ int slm_at_init(void)
 		LOG_ERR("Failed to init ui: %d", err);
 		return -EFAULT;
 	}
-	LOG_ERR("slm_ui_init ok");
 #endif
 #if defined(CONFIG_SLM_TWI)
 	err = slm_at_twi_init();

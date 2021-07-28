@@ -115,10 +115,6 @@ int slm_ui_init(void)
 {
 	int err = -EINVAL;
 
-	err = slm_ui_set(UI_LEDS_OFF);
-	if (err != 0) {
-		LOG_ERR("Could not set UI state, err code: %d", err);
-	}
 #if defined(CONFIG_SLM_UI_LTE_STATE)
 	leds[LED_ID_LTE].fn = SLM_GPIO_FN_LTE;
 	leds[LED_ID_LTE].state = UI_LTE_DISCONNECTED;
@@ -149,6 +145,11 @@ int slm_ui_init(void)
 	do_gpio_pin_configure_set(CONFIG_SLM_MOD_FLASH_PIN, SLM_GPIO_FN_MOD_FLASH);
 	k_work_init_delayable(&leds[LED_ID_MOD_LED].work, work_handler);
 #endif
+
+	err = slm_ui_set(UI_LEDS_OFF);
+	if (err != 0) {
+		LOG_ERR("Could not set UI state, err code: %d", err);
+	}
 
 #if defined(CONFIG_SLM_DIAG)
 	err = slm_diag_init();

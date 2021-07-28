@@ -378,7 +378,7 @@ static int watchdog_timeout_install(struct wdt_data_storage *data)
 			data->wdt_channel_id);
 		return -EFAULT;
 	}
-	LOG_DBG("Watchdog timeout installed. Timeout: %d",
+	LOG_INF("Watchdog timeout: %d",
 		CONFIG_SLM_STATS_WATCHDOG_TIMEOUT_MSEC);
 	return 0;
 }
