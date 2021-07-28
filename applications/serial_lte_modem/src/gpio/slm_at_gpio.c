@@ -33,6 +33,9 @@ const struct device *gpio_dev;
 static struct gpio_callback gpio_cb;
 #endif
 static sys_slist_t slm_gpios = SYS_SLIST_STATIC_INIT(&slm_gpios);
+
+/* global variable defined in different files */
+extern struct k_work_q slm_work_q;
 static struct k_work gpio_work;
 
 struct slm_gpio_pin_t {
@@ -102,7 +105,7 @@ static void gpio_cb_handler(const struct device *gpio_dev, struct gpio_callback 
 						LOG_ERR("Fail to disable interrupt on pin: %d",
 							cur->pin);
 					}
-					k_work_submit(&gpio_work);
+					k_work_submit_to_queue(&slm_work_q, &gpio_work);
 				}
 			}
 		}
@@ -189,7 +192,7 @@ int do_gpio_pin_configure_set(gpio_pin_t pin, uint16_t fn)
 			//TODO: free and remove node
 		}
 		/* Verify pin state and configure interrupt */
-		k_work_submit(&gpio_work);
+		k_work_submit_to_queue(&slm_work_q, &gpio_work);
 	}
 #endif
 
