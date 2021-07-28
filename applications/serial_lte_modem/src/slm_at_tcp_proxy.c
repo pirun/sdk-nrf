@@ -24,7 +24,7 @@
 LOG_MODULE_REGISTER(tcp_proxy, CONFIG_SLM_LOG_LEVEL);
 
 #define THREAD_STACK_SIZE	(KB(3) + NET_IPV4_MTU)
-#define THREAD_PRIORITY		K_LOWEST_APPLICATION_THREAD_PRIO
+#define THREAD_PRIORITY		K_LOWEST_THREAD_PRIO
 
 /* max 2, listening and incoming sockets */
 #define MAX_POLL_FD		2
@@ -697,7 +697,7 @@ static int tcpsvr_input(int infd)
 		k_work_reschedule(&tcpsvr_state_work, K_MSEC(10));
 	} else {
 		if (tcpsvr_state < TCPSVR_CONNECTED) {
-			LOG_DBG("Ignore input data if not connected.");
+			k_sleep(K_MSEC(100));
 			return 0;
 		}
 #if defined(CONFIG_SLM_CUSTOMIZED)
@@ -753,7 +753,7 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 		}
 		current_size = nfds;
 		for (int i = 0; i < current_size; i++) {
-			LOG_DBG("Poll events 0x%08x", fds[i].revents);
+			LOG_DBG("Poll revents[%d] 0x%08x", i, fds[i].revents);
 			if ((fds[i].revents & POLLIN) == POLLIN) {
 				ret = tcpsvr_input(i);
 				if (ret < 0) {
@@ -780,7 +780,7 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 				if (tcpsvr_state == TCPSVR_CONNECTED) {
 					/* Change state to avoid duplicated POLLHUP event */
 					tcpsvr_state = TCPSVR_TERMINATING;
-					k_work_reschedule(&tcpsvr_state_work, K_MSEC(100));
+					k_work_reschedule(&tcpsvr_state_work, K_NO_WAIT);
 				}
 			}
 			if ((fds[i].revents & POLLNVAL) == POLLNVAL) {
