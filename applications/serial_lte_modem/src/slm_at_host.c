@@ -70,7 +70,7 @@ static struct k_work raw_send_work;
 static struct k_work cmd_send_work;
 
 static uint8_t uart_rx_buf[UART_RX_BUF_NUM][UART_RX_LEN];
-static uint8_t *next_buf = uart_rx_buf[1];
+static uint8_t *next_buf;
 static uint8_t *uart_tx_buf;
 static bool uart_recovery_pending;
 static struct k_work_delayable uart_recovery_work;
@@ -137,6 +137,7 @@ static int uart_receive(void)
 		rsp_send(FATAL_STR, sizeof(FATAL_STR) - 1);
 		return ret;
 	}
+	next_buf = uart_rx_buf[1];
 	at_buf_overflow = false;
 	at_buf_len = 0;
 
@@ -313,23 +314,32 @@ static void raw_send(struct k_work *work)
 
 	ARG_UNUSED(work);
 
-	size_send = ring_buf_get_claim(&data_rb, &data, sizeof(at_buf));
-	if (size_send > 0) {
-		LOG_INF("Raw send %d", size_send);
-		LOG_HEXDUMP_DBG(data, MIN(size_send, HEXDUMP_DATAMODE_MAX), "RX-DATAMODE");
-		if (datamode_handler) {
-			size_sent = datamode_handler(DATAMODE_SEND, data, size_send);
-			if (size_sent > 0) {
-				(void)ring_buf_get_finish(&data_rb, size_sent);
-			} else if (size_sent == 0) {
-				(void)ring_buf_get_finish(&data_rb, size_send);
+	/* NOTE ring_buf_get_claim() might not return full size */
+	do {
+		size_send = ring_buf_get_claim(&data_rb, &data, sizeof(at_buf));
+		if (size_send > 0) {
+			LOG_INF("Raw send %d", size_send);
+			LOG_HEXDUMP_DBG(data, MIN(size_send, HEXDUMP_DATAMODE_MAX), "RX-DATAMODE");
+			if (datamode_handler) {
+				size_sent = datamode_handler(DATAMODE_SEND, data, size_send);
+				if (size_sent > 0) {
+					(void)ring_buf_get_finish(&data_rb, size_sent);
+				} else if (size_sent == 0) {
+					(void)ring_buf_get_finish(&data_rb, size_send);
+				} else {
+					LOG_WRN("Raw send failed");
+					break;
+				}
 			} else {
-				LOG_WRN("Raw send failed");
+				LOG_WRN("no handler, %d dropped", size_send);
+				(void)ring_buf_get_finish(&data_rb, size_send);
+				break;
 			}
 		} else {
-			LOG_WRN("no handler, data dropped");
+			break;
 		}
-	}
+	} while (true);
+
 	/* resume UART RX in case of stopped by buffer full */
 	if (datamode_rx_disabled) {
 		(void)uart_receive();
@@ -697,6 +707,7 @@ static void uart_callback(const struct device *dev, struct uart_event *evt, void
 				}
 			}
 		} else if (slm_operation_mode == SLM_DATA_MODE) {
+			LOG_DBG("RX_RDY %d", evt->data.rx.len);
 			err = raw_rx_handler(&(evt->data.rx.buf[pos]), evt->data.rx.len);
 			if (err) {
 				return;
