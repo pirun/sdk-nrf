@@ -47,9 +47,10 @@ static const struct adc_channel_cfg m_1st_channel_cfg = {
 #endif
 };
 
-int decode_hw_rev(int16_t v1, int16_t v2)
+char decode_hw_rev(int16_t v1, int16_t v2)
 {
-	int code = -1, err = 0;
+	char code = 0;
+	int err = 0;
 	int16_t v3 = 0;
 
 	/* Step 4: verify R2 */
@@ -69,48 +70,49 @@ int decode_hw_rev(int16_t v1, int16_t v2)
 		err = adc_channel_setup(adc_dev, &m_1st_channel_cfg);
 		if (err) {
 			LOG_ERR("ADC setup error: %d\n", err);
-			return err;
+			return code;
 		}
 
 		err = adc_read(adc_dev, &adc_seq);
 		if (err) {
 			LOG_ERR("ADC 3rd read error: %d", err);
-			return err;
+			return code;
 		}
 		v3 = m_sample_buffer[0];
+
 		LOG_DBG("v3:%d", v3);
 		/* Decode HW REV */
 		if (v3 > 10 && v3 < 320) {
-			code = 1;
+			code = 'A';
 		} else if (v3 > 330 && v3 < 1200) {
-			code = 2;
+			code = 'B';
 		} else if (v3 > 1210 && v3 < 2400) {
-			code = 3;
+			code = 'C';
 		} else if (v3 > 2410 && v3 < 3600) {
-			code = 4;
+			code = 'D';
 		}
 	} else {
 		/* R2 is present. Decode HW REV */
 		if ((v1 > 3751 && v1 < 4095) && (v2 > 3212 && v2 < 3921)) {
-			code = 5;
+			code = 'E';
 		} else if ((v1 > 3413 && v1 < 3750) && (v2 > 2921 && v2 < 3211)) {
-			code = 6;
+			code = 'F';
 		} else if ((v1 > 3073 && v1 < 3412) && (v2 > 2629 && v2 < 2920)) {
-			code = 7;
+			code = 'G';
 		} else if ((v1 > 2725 && v1 < 3072) && (v2 > 2330 && v2 < 2628)) {
-			code = 8;
+			code = 'H';
 		} else if ((v1 > 2382 && v1 < 2724) && (v2 > 2037 && v2 < 2329)) {
-			code = 9;
+			code = 'J';
 		} else if ((v1 > 2039 && v1 < 2381) && (v2 > 1743 && v2 < 2036)) {
-			code = 10;
+			code = 'K';
 		} else if ((v1 > 1695 && v1 < 2038) && (v2 > 1448 && v2 < 1742)) {
-			code = 11;
+			code = 'M';
 		} else if ((v1 > 1348 && v1 < 1694) && (v2 > 1151 && v2 < 1447)) {
-			code = 12;
+			code = 'N';
 		} else if ((v1 > 1005 && v1 < 1347) && (v2 > 857 && v2 < 1150)) {
-			code = 13;
+			code = 'O';
 		} else if ((v1 > 592 && v1 < 1004) && (v2 > 345 && v2 < 856)) {
-			code = 14;
+			code = 'P';
 		}
 	}
 	LOG_DBG("v1:%d v2:%d", v1, v2);
@@ -120,7 +122,8 @@ int decode_hw_rev(int16_t v1, int16_t v2)
 
 int do_hw_rev_read(void)
 {
-	int err = 0, code = 0;
+	int err = 0;
+	char code = 0;
 	int16_t v1 = 0, v2 = 0;
 
 	adc_seq.channels	= BIT(ADC_1ST_CHANNEL_ID);
@@ -157,14 +160,18 @@ int do_hw_rev_read(void)
 	v2 = m_sample_buffer[0];
 
 	code = decode_hw_rev(v1, v2);
-	LOG_DBG("Decoded HW revision: %d", code);
+	LOG_DBG("Decoded HW revision: %c", code);
 	nrf_saadc_disable(NRF_SAADC);
 	nrf_saadc_channel_input_set(NRF_SAADC,
 				    ADC_1ST_CHANNEL_ID,
 				    NRF_SAADC_INPUT_DISABLED,
 				    NRF_SAADC_INPUT_DISABLED);
-	sprintf(rsp_buf, "\r\n#XSLMHWREV: %d\r\n", code);
-	rsp_send(rsp_buf, strlen(rsp_buf));
+	if (code != 0) {
+		sprintf(rsp_buf, "\r\n#XSLMHWREV: %c\r\n", code);
+		rsp_send(rsp_buf, strlen(rsp_buf));
+	} else {
+		err = -EINVAL;
+	}
 
 	return err;
 }
