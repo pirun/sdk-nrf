@@ -166,11 +166,13 @@ static void close_connection(int code, int error)
 	if (client.data_sock != INVALID_SOCKET) {
 		close(client.data_sock);
 	}
-	close(client.cmd_sock);
-	client.cmd_sock = INVALID_SOCKET;
-	client.data_sock = INVALID_SOCKET;
-	client.connected = false;
-	client.sec_tag = INVALID_SEC_TAG;
+	if (client.cmd_sock != INVALID_SOCKET) {
+		close(client.cmd_sock);
+		client.cmd_sock = INVALID_SOCKET;
+		client.data_sock = INVALID_SOCKET;
+		client.connected = false;
+		client.sec_tag = INVALID_SEC_TAG;
+	}
 }
 
 /**@brief Send FTP message via socket
@@ -509,11 +511,13 @@ int ftp_close(void)
 	if (client.connected) {
 		ret = do_ftp_send_ctrl(CMD_QUIT, sizeof(CMD_QUIT) - 1);
 		if (ret == 0) {
-			ret = do_ftp_recv_ctrl(true, FTP_CODE_221);
+			(void)do_ftp_recv_ctrl(true, FTP_CODE_221);
+		} else {
+			return ret;
 		}
 	}
 	close_connection(FTP_CODE_200, 0);
-	return ret;
+	return FTP_CODE_221;
 }
 
 int ftp_status(void)
