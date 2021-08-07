@@ -24,7 +24,7 @@
 LOG_MODULE_REGISTER(tcp_proxy, CONFIG_SLM_LOG_LEVEL);
 
 #define THREAD_STACK_SIZE	(KB(3) + NET_IPV4_MTU)
-#define THREAD_PRIORITY		K_LOWEST_THREAD_PRIO
+#define THREAD_PRIORITY		K_LOWEST_APPLICATION_THREAD_PRIO
 
 /* max 2, listening and incoming sockets */
 #define MAX_POLL_FD		2
@@ -86,7 +86,6 @@ static struct k_work disconnect_work;
 static K_THREAD_STACK_DEFINE(tcp_thread_stack, THREAD_STACK_SIZE);
 #if defined(CONFIG_SLM_CUSTOMIZED)
 K_TIMER_DEFINE(conn_timer, NULL, NULL);
-static K_SEM_DEFINE(tcpsvr_sem, 0, 1);
 #endif
 
 static struct sockaddr_in remote;
@@ -256,13 +255,22 @@ exit:
 
 static int do_tcp_server_stop(void)
 {
+	int ret;
+
 	if (proxy.sock == INVALID_SOCKET) {
 		LOG_WRN("Proxy server is not running");
 		return -EINVAL;
 	}
-	close(proxy.sock);
+	ret = close(proxy.sock);
+	if (ret) {
+		LOG_WRN("Close socket fails: %d", ret);
+	} else {
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		k_thread_join(&tcp_thread, K_SECONDS(CONFIG_SLM_TCP_POLL_TIME * 2));
+#endif
+	}
 
-	return 0;
+	return ret;
 }
 
 static int do_tcp_client_connect(const char *url, uint16_t port)
@@ -380,11 +388,20 @@ exit:
 
 static int do_tcp_client_disconnect(void)
 {
+	int ret;
+
 	if (proxy.sock == INVALID_SOCKET) {
 		LOG_WRN("Client is not running");
 		return -EINVAL;
 	}
-	close(proxy.sock);
+	ret = close(proxy.sock);
+	if (ret) {
+		LOG_WRN("Close socket fails: %d", ret);
+	} else {
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		k_thread_join(&tcp_thread, K_SECONDS(CONFIG_SLM_TCP_POLL_TIME));
+#endif
+	}
 
 	return 0;
 }
@@ -575,23 +592,25 @@ static void tcp_terminate_connection(int cause)
 	if (proxy.datamode) {
 		(void)exit_datamode();
 	}
-	close(proxy.sock_peer);
-	proxy.sock_peer = INVALID_SOCKET;
-	nfds--;
-	/* Send URC for server-initiated disconnect */
-	sprintf(rsp_buf, "\r\n#XTCPSVR: %d,\"disconnected\"\r\n", cause);
-	rsp_send(rsp_buf, strlen(rsp_buf));
+	if (proxy.sock_peer != INVALID_SOCKET) {
+		close(proxy.sock_peer);
+		proxy.sock_peer = INVALID_SOCKET;
+		nfds--;
+		/* Send URC for server-initiated disconnect */
+		sprintf(rsp_buf, "\r\n#XTCPSVR: %d,\"disconnected\"\r\n", cause);
+		rsp_send(rsp_buf, strlen(rsp_buf));
 #if defined(CONFIG_SLM_CUSTOMIZED_RS232)
-	/* De-activate DCD pin */
-	err = gpio_pin_set(gpio_dev, CONFIG_SLM_DCD_PIN, 0);
-	if (err) {
-		LOG_ERR("Cannot de-activate DCD pin");
-	}
+		/* De-activate DCD pin */
+		err = gpio_pin_set(gpio_dev, CONFIG_SLM_DCD_PIN, 0);
+		if (err) {
+			LOG_ERR("Cannot de-activate DCD pin");
+		}
 #endif
 #if defined(CONFIG_SLM_MOD_FLASH)
-	ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_IDLE);
+		ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_IDLE);
 #endif
-	tcpsvr_state = TCPSVR_INIT;
+		tcpsvr_state = TCPSVR_INIT;
+	}
 }
 
 static void terminate_connection_wk(struct k_work *work)
@@ -831,9 +850,8 @@ exit:
 			rsp_send(rsp_buf, strlen(rsp_buf));
 		}
 	}
-#if defined(CONFIG_SLM_CUSTOMIZED)
-	k_sem_give(&tcpsvr_sem);
-#endif
+
+	LOG_INF("TCP server thread terminated");
 }
 
 /* TCP client thread */
@@ -925,6 +943,7 @@ exit:
 #if defined(CONFIG_SLM_MOD_FLASH)
 	ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_IDLE);
 #endif
+	LOG_INF("TCP client thread terminated");
 }
 
 /**@brief handle AT#XTCPFILTER commands
@@ -1063,11 +1082,6 @@ int handle_at_tcp_server(enum at_cmd_type cmd_type)
 			}
 		} else if (op == AT_SERVER_STOP) {
 			err = do_tcp_server_stop();
-#if defined(CONFIG_SLM_CUSTOMIZED)
-			if (err == 0) {
-				k_sem_take(&tcpsvr_sem, K_FOREVER);
-			}
-#endif
 		} break;
 
 	case AT_CMD_TYPE_READ_COMMAND:
