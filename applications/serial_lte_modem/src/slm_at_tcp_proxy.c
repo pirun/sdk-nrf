@@ -350,7 +350,7 @@ static int do_tcp_client_connect(const char *url, uint16_t port)
 	}
 #if defined(CONFIG_SLM_CUSTOMIZED_RS232)
 	/* Activate DCD pin */
-	ret = gpio_pin_set(gpio_dev, CONFIG_SLM_DCD_PIN, 1);
+	ret = gpio_pin_set_raw(gpio_dev, CONFIG_SLM_DCD_PIN, 0);
 	if (ret) {
 		LOG_ERR("Cannot activate DCD pin");
 		goto exit;
@@ -601,7 +601,7 @@ static void tcp_terminate_connection(int cause)
 		rsp_send(rsp_buf, strlen(rsp_buf));
 #if defined(CONFIG_SLM_CUSTOMIZED_RS232)
 		/* De-activate DCD pin */
-		err = gpio_pin_set(gpio_dev, CONFIG_SLM_DCD_PIN, 0);
+		err = gpio_pin_set_raw(gpio_dev, CONFIG_SLM_DCD_PIN, 1);
 		if (err) {
 			LOG_ERR("Cannot de-activate DCD pin");
 		}
@@ -935,7 +935,7 @@ exit:
 	}
 #if defined(CONFIG_SLM_CUSTOMIZED_RS232)
 	/* De-activate DCD pin */
-	ret = gpio_pin_set(gpio_dev, CONFIG_SLM_DCD_PIN, 0);
+	ret = gpio_pin_set_raw(gpio_dev, CONFIG_SLM_DCD_PIN, 1);
 	if (ret) {
 		LOG_ERR("Cannot de-activate DCD pin");
 	}
@@ -1406,7 +1406,7 @@ static void tcpsvr_state_work_fn(struct k_work *work)
 	{
 #if defined(CONFIG_SLM_CUSTOMIZED_RS232)
 		/* Activate DCD pin */
-		if (gpio_pin_set(gpio_dev, CONFIG_SLM_DCD_PIN, 1) != 0) {
+		if (gpio_pin_set_raw(gpio_dev, CONFIG_SLM_DCD_PIN, 0) != 0) {
 			LOG_ERR("Cannot activate DCD pin");
 			return;
 		}

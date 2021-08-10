@@ -14,6 +14,9 @@
 #include "slm_util.h"
 #include "slm_at_host.h"
 #include "slm_at_ftp.h"
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+#include <drivers/gpio.h>
+#endif
 
 LOG_MODULE_REGISTER(ftp, CONFIG_SLM_LOG_LEVEL);
 
@@ -118,6 +121,10 @@ extern struct at_param_list at_param_list;
 extern char rsp_buf[CONFIG_SLM_SOCKET_RX_MAX * 2];
 extern uint8_t rx_data[CONFIG_SLM_SOCKET_RX_MAX];
 
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+extern const struct device *gpio_dev;
+#endif
+
 void ftp_ctrl_callback(const uint8_t *msg, uint16_t len)
 {
 	char code_str[4];  /* Proprietary code 900 ~ 999 */
@@ -147,6 +154,12 @@ void ftp_ctrl_callback(const uint8_t *msg, uint16_t len)
 			break;
 		}
 		rsp_send(rsp_buf, strlen(rsp_buf));
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+		/* De-activate DCD pin */
+		if (gpio_pin_set_raw(gpio_dev, CONFIG_SLM_DCD_PIN, 1) != 0) {
+			LOG_ERR("Cannot de-activate DCD pin");
+		}
+#endif
 		if (ftp_data_mode_handler && exit_datamode()) {
 			sprintf(rsp_buf, "\r\n#XFTP: 0,\"datamode\"\r\n");
 			rsp_send(rsp_buf, strlen(rsp_buf));
@@ -251,6 +264,14 @@ static int do_ftp_open(void)
 	if (ret != FTP_CODE_230) {
 		return -EACCES;
 	}
+
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+		/* Activate DCD pin */
+		if (gpio_pin_set_raw(gpio_dev, CONFIG_SLM_DCD_PIN, 0) != 0) {
+			LOG_ERR("Cannot activate DCD pin");
+			return -EIO;
+		}
+#endif
 
 	return 0;
 }

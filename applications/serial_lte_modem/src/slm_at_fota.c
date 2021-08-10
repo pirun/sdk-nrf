@@ -13,6 +13,9 @@
 #include <net/fota_download.h>
 #include "slm_util.h"
 #include "slm_at_fota.h"
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+#include <drivers/gpio.h>
+#endif
 
 LOG_MODULE_REGISTER(fota, CONFIG_SLM_LOG_LEVEL);
 
@@ -50,6 +53,9 @@ extern uint8_t fota_type;
 extern uint8_t fota_stage;
 extern uint8_t fota_status;
 extern int32_t fota_info;
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+extern const struct device *gpio_dev;
+#endif
 
 static int do_fota_erase(void)
 {
@@ -195,6 +201,19 @@ static void fota_dl_handler(const struct fota_download_evt *evt)
 		return;
 	}
 	rsp_send(rsp_buf, strlen(rsp_buf));
+#if defined(CONFIG_SLM_CUSTOMIZED_RS232)
+	if (evt->id == FOTA_DOWNLOAD_EVT_PROGRESS) {
+		/* Activate DCD pin */
+		if (gpio_pin_set_raw(gpio_dev, CONFIG_SLM_DCD_PIN, 0) != 0) {
+			LOG_ERR("Cannot activate DCD pin");
+		}
+	} else {
+		/* De-activate DCD pin */
+		if (gpio_pin_set_raw(gpio_dev, CONFIG_SLM_DCD_PIN, 1) != 0) {
+			LOG_ERR("Cannot de-activate DCD pin");
+		}
+	}
+#endif
 }
 
 /**@brief handle AT#XFOTA commands

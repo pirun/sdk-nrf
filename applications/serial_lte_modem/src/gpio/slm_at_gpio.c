@@ -454,7 +454,7 @@ int slm_at_gpio_init(void)
 		LOG_ERR("CONFIG_SLM_RI_PIN config error: %d", err);
 		return err;
 	}
-	err = gpio_pin_configure(gpio_dev, CONFIG_SLM_DCD_PIN, GPIO_OUTPUT);
+	err = gpio_pin_configure(gpio_dev, CONFIG_SLM_DCD_PIN, GPIO_OUTPUT_HIGH);
 	if (err) {
 		LOG_ERR("CONFIG_SLM_DCD_PIN config error: %d", err);
 		return err;
