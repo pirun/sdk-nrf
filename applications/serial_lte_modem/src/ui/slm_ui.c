@@ -37,6 +37,11 @@ static void work_handler(struct k_work *work)
 	LOG_DBG("Set UI pin %d state %d", slm_pin, effect_step->led_on);
 #endif
 	gpio_pin_set(gpio_dev, (gpio_pin_t)slm_pin, effect_step->led_on);
+#if defined(CONFIG_SLM_CUSTOMIZED)
+	if (slm_pin == CONFIG_SLM_UI_LTE_SIGNAL_PIN) {
+		gpio_pin_set(gpio_dev, (gpio_pin_t)CONFIG_SLM_MOD_FLASH_PIN, effect_step->led_on);
+	}
+#endif
 
 	led->effect_substep++;
 	if (led->effect_substep == effect_step->substep_cnt) {
@@ -139,11 +144,8 @@ int slm_ui_init(void)
 	do_gpio_pin_configure_set(CONFIG_SLM_UI_DIAG_PIN, SLM_GPIO_FN_DIAG);
 	k_work_init_delayable(&leds[LED_ID_DIAG].work, work_handler);
 #endif
-#if defined(CONFIG_SLM_MOD_FLASH)
-	leds[LED_ID_MOD_LED].fn = SLM_GPIO_FN_MOD_FLASH;
-	leds[LED_ID_MOD_LED].state = UI_ONLINE_OFF;
+#if defined(CONFIG_SLM_CUSTOMIZED)
 	do_gpio_pin_configure_set(CONFIG_SLM_MOD_FLASH_PIN, SLM_GPIO_FN_MOD_FLASH);
-	k_work_init_delayable(&leds[LED_ID_MOD_LED].work, work_handler);
 #endif
 
 	err = slm_ui_set(UI_LEDS_OFF);
@@ -203,11 +205,6 @@ int slm_ui_uninit(void)
 	leds[LED_ID_DIAG].state = UI_DIAG_OFF;
 	k_work_cancel_delayable(&leds[LED_ID_DIAG].work);
 #endif
-#if defined(CONFIG_SLM_MOD_FLASH)
-	leds[LED_ID_MOD_LED].fn = SLM_GPIO_FN_MOD_FLASH;
-	leds[LED_ID_MOD_LED].state = UI_ONLINE_OFF;
-	k_work_cancel_delayable(&leds[LED_ID_MOD_LED].work);
-#endif
 
 	return err;
 }
@@ -235,6 +232,11 @@ int slm_ui_set(enum ui_leds_state state)
 			LOG_ERR("Fail to set GPIO pin: %d", slm_pin);
 			break;
 		}
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		if (slm_pin == CONFIG_SLM_UI_LTE_SIGNAL_PIN) {
+			gpio_pin_set(gpio_dev, (gpio_pin_t)CONFIG_SLM_MOD_FLASH_PIN, onoff);
+		}
+#endif
 	}
 
 	return err;

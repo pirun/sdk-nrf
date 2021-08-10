@@ -303,27 +303,18 @@ int slm_stats_read(void)
 	} else if (stats.reg_status == LTE_LC_NW_REG_SEARCHING) {
 		LOG_DBG("Network registration status: Connecting");
 		ui_led_set_state(LED_ID_LTE, UI_LTE_CONNECTING);
-#if defined(CONFIG_SLM_MOD_FLASH)
-		ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_OFF);
-#endif
 	} else if ((stats.reg_status == LTE_LC_NW_REG_REGISTERED_HOME) ||
 		(stats.reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING)) {
 		LOG_DBG("Network registration status: %s",
 		stats.reg_status == LTE_LC_NW_REG_REGISTERED_HOME ?
 		"Connected - home network" : "Connected - roaming");
 		ui_led_set_state(LED_ID_LTE, UI_LTE_CONNECTED);
-#if defined(CONFIG_SLM_MOD_FLASH)
-		ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_IDLE);
-#endif
 #if defined(CONFIG_SLM_DIAG)
 		slm_diag_clear_event(SLM_DIAG_UICC_FAIL);
 #endif
 	} else if ((stats.reg_status == LTE_LC_NW_REG_NOT_REGISTERED) ||
 		(stats.reg_status == LTE_LC_NW_REG_UNKNOWN)) {
 		ui_led_set_state(LED_ID_LTE, UI_LTE_DISCONNECTED);
-#if defined(CONFIG_SLM_MOD_FLASH)
-		ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_OFF);
-#endif
 	}
 
 	return err;
@@ -526,27 +517,18 @@ static void stats_thread_fn(void *arg1, void *arg2, void *arg3)
 				} else if (stats.reg_status == LTE_LC_NW_REG_SEARCHING) {
 					LOG_DBG("Network registration status: Connecting");
 					ui_led_set_state(LED_ID_LTE, UI_LTE_CONNECTING);
-#if defined(CONFIG_SLM_MOD_FLASH)
-					ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_OFF);
-#endif
 				} else if ((stats.reg_status == LTE_LC_NW_REG_REGISTERED_HOME) ||
 					(stats.reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING)) {
 					LOG_DBG("Network registration status: %s",
 					stats.reg_status == LTE_LC_NW_REG_REGISTERED_HOME ?
 					"Connected - home network" : "Connected - roaming");
 					ui_led_set_state(LED_ID_LTE, UI_LTE_CONNECTED);
-#if defined(CONFIG_SLM_MOD_FLASH)
-					ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_IDLE);
-#endif
 	#if defined(CONFIG_SLM_DIAG)
 					slm_diag_clear_event(SLM_DIAG_UICC_FAIL);
 	#endif
 				} else if ((stats.reg_status == LTE_LC_NW_REG_NOT_REGISTERED) ||
 					(stats.reg_status == LTE_LC_NW_REG_UNKNOWN)) {
 					ui_led_set_state(LED_ID_LTE, UI_LTE_DISCONNECTED);
-#if defined(CONFIG_SLM_MOD_FLASH)
-					ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_OFF);
-#endif
 				}
 				break;
 			}

@@ -50,14 +50,11 @@ config SLM_STATS_BATTERY_INTERVAL
 	int "Interval to check battery level in ms"
 	default 600000
 
-config SLM_MOD_FLASH
-	bool "modem flash pin option"
-	help
-	  This is an option to enable GPIO pin as modem flash indicator.
-
 config SLM_MOD_FLASH_PIN
 	int "MOD_FLASH Pin"
 	default 24
+	help
+	  Default GPIO pin as modem flash led.
 
 config SLM_STATS_WATCHDOG
 	bool "Watchdog support in SLM"

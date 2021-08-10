@@ -356,10 +356,6 @@ static int do_tcp_client_connect(const char *url, uint16_t port)
 		goto exit;
 	}
 #endif
-#if defined(CONFIG_SLM_MOD_FLASH)
-	/* Activate MODEM FlASH LED pin */
-	ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_CONNECTED);
-#endif
 	k_thread_create(&tcp_thread, tcp_thread_stack,
 			K_THREAD_STACK_SIZEOF(tcp_thread_stack),
 			tcpcli_thread_func, NULL, NULL, NULL,
@@ -605,9 +601,6 @@ static void tcp_terminate_connection(int cause)
 		if (err) {
 			LOG_ERR("Cannot de-activate DCD pin");
 		}
-#endif
-#if defined(CONFIG_SLM_MOD_FLASH)
-		ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_IDLE);
 #endif
 		tcpsvr_state = TCPSVR_INIT;
 	}
@@ -939,9 +932,6 @@ exit:
 	if (ret) {
 		LOG_ERR("Cannot de-activate DCD pin");
 	}
-#endif
-#if defined(CONFIG_SLM_MOD_FLASH)
-	ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_IDLE);
 #endif
 	LOG_INF("TCP client thread terminated");
 }
@@ -1410,10 +1400,6 @@ static void tcpsvr_state_work_fn(struct k_work *work)
 			LOG_ERR("Cannot activate DCD pin");
 			return;
 		}
-#endif
-#if defined(CONFIG_SLM_MOD_FLASH)
-		/* Activate MODEM FlASH LED pin */
-		ui_led_set_state(LED_ID_MOD_LED, UI_ONLINE_CONNECTED);
 #endif
 #if defined(CONFIG_SLM_DIAG)
 		/* Clear connection fail */
