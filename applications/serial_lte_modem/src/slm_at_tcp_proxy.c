@@ -73,8 +73,7 @@ enum slm_tcpsvr_state {
 	TCPSVR_POST_RI,
 #endif
 	TCPSVR_CONNECTING,
-	TCPSVR_CONNECTED,
-	TCPSVR_TERMINATING
+	TCPSVR_CONNECTED
 };
 
 static enum slm_tcpsvr_state tcpsvr_state;
@@ -550,29 +549,55 @@ static void tcp_data_handle(uint8_t *data, uint32_t length)
 	}
 #endif
 
-	if (proxy.datamode) {
-		rsp_send(data, length);
-	} else if (slm_util_hex_check(data, length)) {
-		uint8_t data_hex[length * 2];
+	if (tcpsvr_state == TCPSVR_CONNECTED) {
+		if (proxy.datamode) {
+			rsp_send(data, length);
+		} else if (slm_util_hex_check(data, length)) {
+			uint8_t data_hex[length * 2];
 
-		ret = slm_util_htoa(data, length, data_hex, length * 2);
-		if (ret < 0) {
-			LOG_ERR("hex convert error: %d", ret);
-			return;
-		}
-		if (tcp_data_save(data_hex, ret) < 0) {
-			sprintf(rsp_buf, "\r\n#XTCPDATA: \"overrun\"\r\n");
+			ret = slm_util_htoa(data, length, data_hex, length * 2);
+			if (ret < 0) {
+				LOG_ERR("hex convert error: %d", ret);
+				return;
+			}
+
+			int err = tcp_data_save(data_hex, ret);
+			if (err < 0) {
+				LOG_ERR("TCP data buffer overflow");
+			} else {
+				sprintf(rsp_buf, "\r\n#XTCPDATA: %d,%d\r\n", DATATYPE_HEXADECIMAL,
+					ret);
+				rsp_send(rsp_buf, strlen(rsp_buf));
+			}
 		} else {
-			sprintf(rsp_buf, "\r\n#XTCPDATA: %d,%d\r\n", DATATYPE_HEXADECIMAL, ret);
+			ret = tcp_data_save(data, length);
+			if (ret < 0) {
+				LOG_ERR("TCP data buffer overflow");
+			} else if (tcpsvr_state == TCPSVR_CONNECTED) {
+				sprintf(rsp_buf, "\r\n#XTCPDATA: %d,%d\r\n", DATATYPE_PLAINTEXT,
+					length);
+				rsp_send(rsp_buf, strlen(rsp_buf));
+			}
 		}
-		rsp_send(rsp_buf, strlen(rsp_buf));
 	} else {
-		if (tcp_data_save(data, length) < 0) {
-			sprintf(rsp_buf, "\r\n#XTCPDATA: \"overrun\"\r\n");
+		if (slm_util_hex_check(data, length)) {
+			uint8_t data_hex[length * 2];
+
+			ret = slm_util_htoa(data, length, data_hex, length * 2);
+			if (ret < 0) {
+				LOG_ERR("hex convert error: %d", ret);
+				return;
+			}
+			ret = tcp_data_save(data_hex, ret);
+			if (ret < 0) {
+				LOG_ERR("TCP data buffer overflow");
+			}
 		} else {
-			sprintf(rsp_buf, "\r\n#XTCPDATA: %d,%d\r\n", DATATYPE_PLAINTEXT, length);
+			ret = tcp_data_save(data, length);
+			if (ret < 0) {
+				LOG_ERR("TCP data buffer overflow");
+			}
 		}
-		rsp_send(rsp_buf, strlen(rsp_buf));
 	}
 
 }
@@ -708,10 +733,6 @@ static int tcpsvr_input(int infd)
 			peer_addr);
 		k_work_reschedule(&tcpsvr_state_work, K_MSEC(10));
 	} else {
-		if (tcpsvr_state < TCPSVR_CONNECTED) {
-			k_sleep(K_MSEC(100));
-			return 0;
-		}
 #if defined(CONFIG_SLM_CUSTOMIZED)
 		k_timer_stop(&conn_timer);
 #endif
@@ -773,7 +794,7 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 				}
 			}
 			if ((fds[i].revents & POLLERR) == POLLERR) {
-				LOG_ERR("POLLERR: %d", i);
+				LOG_INF("POLLERR: %d", i);
 				if (fds[i].fd == proxy.sock) {
 					ret = -EIO;
 					goto exit;
@@ -782,6 +803,7 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 				continue;
 			}
 			if ((fds[i].revents & POLLHUP) == POLLHUP) {
+				LOG_INF("POLLHUP: %d", i);
 				if (fds[i].fd == proxy.sock) {
 #if defined(CONFIG_SLM_DIAG)
 					slm_diag_set_event(SLM_DIAG_CALL_FAIL);
@@ -790,13 +812,15 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 					goto exit;
 				}
 				if (tcpsvr_state == TCPSVR_CONNECTED) {
-					/* Change state to avoid duplicated POLLHUP event */
-					tcpsvr_state = TCPSVR_TERMINATING;
-					k_work_reschedule(&tcpsvr_state_work, K_NO_WAIT);
+					tcp_terminate_connection(-ECONNRESET);
+				} else {
+					LOG_WRN("Early disconnected");
+					k_msleep(1000);
 				}
+				continue;
 			}
 			if ((fds[i].revents & POLLNVAL) == POLLNVAL) {
-				LOG_WRN("POLLNVAL: %d", i);
+				LOG_INF("POLLNVAL: %d", i);
 				if (fds[i].fd == proxy.sock) {
 					ret = 0;
 					if (proxy.sock_peer != INVALID_SOCKET) {
@@ -1416,11 +1440,20 @@ static void tcpsvr_state_work_fn(struct k_work *work)
 		k_timer_start(&conn_timer, K_SECONDS(proxy.timeout), K_NO_WAIT);
 #endif
 		tcpsvr_state = TCPSVR_CONNECTED;
-	} break;
-	case TCPSVR_TERMINATING:
-	{
-		LOG_DBG("Terminate connection - peer reset");
-		tcp_terminate_connection(-ECONNRESET);
+
+		uint32_t size = ring_buf_capacity_get(&data_buf) - ring_buf_space_get(&data_buf);
+
+		if (size > 0) {
+			if (proxy.datamode) {
+				size = ring_buf_get(&data_buf, rsp_buf, sizeof(rsp_buf));
+				rsp_send(rsp_buf, size);
+			} else {
+				/* there could be multiple receiving data so set arbitrary type */
+				sprintf(rsp_buf, "\r\n#XTCPDATA: %d,%d\r\n", DATATYPE_ARBITRARY,
+					size);
+				rsp_send(rsp_buf, strlen(rsp_buf));
+			}
+		}
 	} break;
 
 	default:
