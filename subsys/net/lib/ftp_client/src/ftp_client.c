@@ -55,6 +55,8 @@ static struct data_task {
 	uint16_t length;	/* TX length */
 } data_task_param;
 
+static bool ftp_inactivity;
+
 static int parse_return_code(const uint8_t *message, int success_code)
 {
 	char code_str[6]; /* max 1xxxx*/
@@ -200,6 +202,7 @@ static int do_ftp_send_ctrl(const uint8_t *message, int length)
 	} else {
 		LOG_DBG("CMD sent");
 	}
+	ftp_inactivity = false;
 	return ret;
 }
 
@@ -216,8 +219,6 @@ static int do_ftp_send_data(const char *pasv_msg, uint8_t *message, uint16_t len
 		return ret;
 	}
 
-	LOG_HEXDUMP_DBG(message, length, "TXD");
-
 	while (offset < length) {
 		ret = send(client.data_sock, message + offset, length - offset, 0);
 		if (ret < 0) {
@@ -225,12 +226,13 @@ static int do_ftp_send_data(const char *pasv_msg, uint8_t *message, uint16_t len
 			ret = -errno;
 			break;
 		}
+		LOG_DBG("DATA sent %d", ret);
 		offset += ret;
 		ret = 0;
 	}
 
-	LOG_DBG("DATA sent");
 	close(client.data_sock);
+	ftp_inactivity = false;
 	return ret;
 }
 
@@ -282,7 +284,7 @@ static int do_ftp_recv_ctrl(bool post_result, int success_code)
 		client.ctrl_callback(ctrl_buf, ret);
 	}
 
-	LOG_DBG("CTRL received");
+	ftp_inactivity = false;
 	return parse_return_code(ctrl_buf, success_code);
 }
 
@@ -323,12 +325,12 @@ static void do_ftp_recv_data(const char *pasv_msg)
 			break;
 		}
 
-		LOG_HEXDUMP_DBG(data_buf, ret, "RXD");
 		client.data_callback(data_buf, ret);
+		LOG_DBG("DATA received %d", ret);
 	} while (true);
 
 	close(client.data_sock);
-	LOG_DBG("DATA received");
+	ftp_inactivity = false;
 }
 
 static int poll_data_task_done(void)
@@ -373,9 +375,13 @@ static void keepalive_handler(struct k_work *work)
 {
 	int ret;
 
-	ret = do_ftp_send_ctrl(CMD_NOOP, sizeof(CMD_NOOP) - 1);
-	if (ret == 0) {
-		(void)do_ftp_recv_ctrl(false, FTP_CODE_200);
+	if (ftp_inactivity) {
+		ret = do_ftp_send_ctrl(CMD_NOOP, sizeof(CMD_NOOP) - 1);
+		if (ret == 0) {
+			(void)do_ftp_recv_ctrl(false, FTP_CODE_200);
+		}
+	} else {
+		ftp_inactivity = true;
 	}
 }
 
