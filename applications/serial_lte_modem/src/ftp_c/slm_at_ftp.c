@@ -485,6 +485,12 @@ static int ftp_datamode_callback(uint8_t op, const uint8_t *data, int len)
 		if (ftp_data_mode_handler) {
 			ret = ftp_data_mode_handler(data, len);
 			LOG_DBG("datamode send: %d", ret);
+#if defined(CONFIG_SLM_CUSTOMIZED)
+/* close current FTP connection if upload fails */
+			if (ret) {
+				(void)ftp_close();
+			}
+#endif
 		} else {
 			LOG_ERR("no datamode send handler");
 		}

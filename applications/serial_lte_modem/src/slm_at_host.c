@@ -310,7 +310,7 @@ static void response_handler(void *context, const char *response)
 static void raw_send(struct k_work *work)
 {
 	uint8_t *data;
-	uint32_t size_send, size_sent;
+	int size_send, size_sent;
 
 	ARG_UNUSED(work);
 
@@ -327,7 +327,21 @@ static void raw_send(struct k_work *work)
 				} else if (size_sent == 0) {
 					(void)ring_buf_get_finish(&data_rb, size_send);
 				} else {
+#if defined(CONFIG_SLM_CUSTOMIZED)
+/** Customization for customer project:
+  * If DATAMODE_SEND fails, drop unsend data, quit datamode and send error URC right away
+  */
+					LOG_WRN("Raw send failed, %d dropped", size_send);
+					(void)ring_buf_get_finish(&data_rb, size_send);
+					(void)exit_datamode();
+					rsp_send(ERROR_STR, sizeof(ERROR_STR) - 1);
+					if (datamode_rx_disabled) {
+						/* UART RX already resumed for command mode */
+						datamode_rx_disabled = false;
+					}
+#else
 					LOG_WRN("Raw send failed");
+#endif
 					break;
 				}
 			} else {
