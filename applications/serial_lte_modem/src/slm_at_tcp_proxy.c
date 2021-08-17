@@ -549,7 +549,7 @@ static void tcp_data_handle(uint8_t *data, uint32_t length)
 	}
 #endif
 
-	if (tcpsvr_state == TCPSVR_CONNECTED) {
+	if (proxy.role == AT_TCP_ROLE_CLIENT || tcpsvr_state == TCPSVR_CONNECTED) {
 		if (proxy.datamode) {
 			rsp_send(data, length);
 		} else if (slm_util_hex_check(data, length)) {
