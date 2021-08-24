@@ -69,11 +69,11 @@ static void exit_idle(struct k_work *work)
 	int err;
 
 	LOG_INF("Exit idle, full mode: %d", full_idle_mode);
-	gpio_pin_interrupt_configure(gpio_dev, CONFIG_SLM_INTERFACE_PIN,
+	(void)gpio_pin_interrupt_configure(gpio_dev, CONFIG_SLM_INTERFACE_PIN,
 				     GPIO_INT_DISABLE);
 	gpio_remove_callback(gpio_dev, &gpio_cb);
 	/* Do the same as nrf_gpio_cfg_default() */
-	gpio_pin_configure(gpio_dev, CONFIG_SLM_INTERFACE_PIN, GPIO_INPUT);
+	(void)gpio_pin_configure(gpio_dev, CONFIG_SLM_INTERFACE_PIN, GPIO_INPUT);
 
 	if (full_idle_mode) {
 		/* Restart SLM services */

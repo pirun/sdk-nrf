@@ -833,7 +833,6 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 					goto exit;
 				}
 				tcp_terminate_connection(-ECONNABORTED);
-				continue;
 			}
 		}
 	}

@@ -445,7 +445,7 @@ int slm_at_gpio_init(void)
 	gpio_dev = device_get_binding(DT_LABEL(DT_NODELABEL(gpio0)));
 	if (gpio_dev == NULL) {
 		LOG_ERR("GPIO_0 bind error");
-		err = -EIO;
+		return -EIO;
 	}
 
 #if defined(CONFIG_SLM_CUSTOMIZED_RS232)

@@ -309,7 +309,7 @@ static void response_handler(void *context, const char *response)
 
 static void raw_send(struct k_work *work)
 {
-	uint8_t *data;
+	uint8_t *data = NULL;
 	int size_send, size_sent;
 
 	ARG_UNUSED(work);

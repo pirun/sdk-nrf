@@ -36,10 +36,11 @@ static void work_handler(struct k_work *work)
 #if defined(CONFIG_SLM_UI_DEBUG)
 	LOG_DBG("Set UI pin %d state %d", slm_pin, effect_step->led_on);
 #endif
-	gpio_pin_set(gpio_dev, (gpio_pin_t)slm_pin, effect_step->led_on);
+	(void)gpio_pin_set(gpio_dev, (gpio_pin_t)slm_pin, effect_step->led_on);
 #if defined(CONFIG_SLM_CUSTOMIZED)
 	if (slm_pin == CONFIG_SLM_UI_LTE_SIGNAL_PIN) {
-		gpio_pin_set(gpio_dev, (gpio_pin_t)CONFIG_SLM_MOD_FLASH_PIN, effect_step->led_on);
+		(void)gpio_pin_set(gpio_dev, (gpio_pin_t)CONFIG_SLM_MOD_FLASH_PIN,
+				   effect_step->led_on);
 	}
 #endif
 
@@ -234,7 +235,7 @@ int slm_ui_set(enum ui_leds_state state)
 		}
 #if defined(CONFIG_SLM_CUSTOMIZED)
 		if (slm_pin == CONFIG_SLM_UI_LTE_SIGNAL_PIN) {
-			gpio_pin_set(gpio_dev, (gpio_pin_t)CONFIG_SLM_MOD_FLASH_PIN, onoff);
+			(void)gpio_pin_set(gpio_dev, (gpio_pin_t)CONFIG_SLM_MOD_FLASH_PIN, onoff);
 		}
 #endif
 	}
