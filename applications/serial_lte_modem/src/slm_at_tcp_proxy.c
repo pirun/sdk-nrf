@@ -580,7 +580,11 @@ static void tcp_data_handle(uint8_t *data, uint32_t length)
 			}
 		}
 	} else {
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		if (!proxy.datamode && slm_util_hex_check(data, length)) {
+#else
 		if (slm_util_hex_check(data, length)) {
+#endif
 			uint8_t data_hex[length * 2];
 
 			ret = slm_util_htoa(data, length, data_hex, length * 2);
