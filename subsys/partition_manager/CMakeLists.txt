@@ -49,6 +49,11 @@ endfunction()
 # Add all pm.yml files for subsystems
 # Store the preprocessed output in the binary dir of the subsystems
 # to avoid overwriting pm.yml files.
+
+if (CONFIG_PM_PLACEHOLDER)
+  ncs_add_partition_manager_config(pm.yml.placeholder)
+endif()
+
 if (CONFIG_SETTINGS_FCB OR CONFIG_SETTINGS_NVS)
   ncs_add_partition_manager_config(pm.yml.settings)
 endif()

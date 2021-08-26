@@ -40,6 +40,15 @@ partition-size=0x6000
 rsource "Kconfig.template.partition_size"
 endif
 
+config PM_PLACEHOLDER
+	bool "Enable a placeholder partition in the flash storage area"
+	depends on PARTITION_MANAGER_ENABLED
+
+if PM_PLACEHOLDER
+partition=PLACEHOLDER
+partition-size=0x8000
+rsource "Kconfig.template.partition_size"
+endif
 
 if SETTINGS
 partition=SETTINGS_STORAGE
