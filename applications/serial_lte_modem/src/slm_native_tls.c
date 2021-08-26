@@ -20,7 +20,7 @@ static uint8_t *crdl;
  */
 nrf_sec_tag_t slm_tls_map_sectag(sec_tag_t sec_tag, uint16_t type)
 {
-	if (sec_tag > MAX_SLM_SEC_TAG || sec_tag < MIN_SLM_SEC_TAG) {
+	if (sec_tag > MAX_NATIVE_TLS_SEC_TAG || sec_tag < MIN_NATIVE_TLS_SEC_TAG) {
 		LOG_ERR("Invalid security tag.");
 		return -EINVAL;
 	}
@@ -36,7 +36,7 @@ int slm_tls_loadcrdl(sec_tag_t sec_tag)
 	int ret, len = MAX_CRDL_LEN, offset = 0;
 	bool loaded = false;
 
-	if (sec_tag > MAX_SLM_SEC_TAG || sec_tag < MIN_SLM_SEC_TAG) {
+	if (sec_tag > MAX_NATIVE_TLS_SEC_TAG || sec_tag < MIN_NATIVE_TLS_SEC_TAG) {
 		LOG_ERR("Invalid security tag.");
 		return -EINVAL;
 	}
@@ -125,7 +125,7 @@ exit:
  */
 int slm_tls_unloadcrdl(sec_tag_t sec_tag)
 {
-	if (sec_tag > MAX_SLM_SEC_TAG || sec_tag < MIN_SLM_SEC_TAG) {
+	if (sec_tag > MAX_NATIVE_TLS_SEC_TAG || sec_tag < MIN_NATIVE_TLS_SEC_TAG) {
 		LOG_ERR("Invalid security tag.");
 		return -EINVAL;
 	}

@@ -17,8 +17,10 @@
 #include <net/tls_credentials.h>
 #include <modem/modem_key_mgmt.h>
 
-#define MAX_SLM_SEC_TAG (INT_MAX/10)
-#define MIN_SLM_SEC_TAG 0
+#define MIN_MODEM_TLS_SEC_TAG 0
+#define MAX_MODEM_TLS_SEC_TAG 99
+#define MIN_NATIVE_TLS_SEC_TAG 100
+#define MAX_NATIVE_TLS_SEC_TAG 199
 
 /**
  * @brief Map SLM security tag to nRF security tag
