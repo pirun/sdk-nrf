@@ -191,7 +191,7 @@ int handle_at_hw_rev(enum at_cmd_type cmd_type)
 		break;
 
 	case AT_CMD_TYPE_TEST_COMMAND:
-		sprintf(rsp_buf, "\r\n#XSLMHWREV: (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14)\r\n");
+		sprintf(rsp_buf, "\r\n#XSLMHWREV: (A,B,C,D,E,F,G,H,J,K,M,N,O,P)\r\n");
 		rsp_send(rsp_buf, strlen(rsp_buf));
 		err = 0;
 		break;
