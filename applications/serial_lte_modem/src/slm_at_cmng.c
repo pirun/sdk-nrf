@@ -131,7 +131,7 @@ int handle_at_xcmng(enum at_cmd_type cmd_type)
 					err);
 			} else {
 				*(content + len) = '\0';
-				sprintf(rsp_buf, "%%CMNG: %d,%d,\"\","
+				sprintf(rsp_buf, "#XCMNG: %d,%d,\"\","
 					"\"%s\"\r\n", sec_tag, type, content);
 				rsp_send(rsp_buf, strlen(rsp_buf));
 			}
