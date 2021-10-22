@@ -159,7 +159,7 @@ static int do_tcp_server_start(uint16_t port)
 	if (proxy.sec_tag == INVALID_SEC_TAG) {
 		proxy.sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	} else {
-		proxy.sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TLS_1_2);
+		proxy.sock = socket(AF_INET, SOCK_STREAM|SOCK_NATIVE_TLS, IPPROTO_TLS_1_2);
 	}
 	if (proxy.sock < 0) {
 		LOG_ERR("socket() failed: %d", -errno);
