@@ -157,9 +157,9 @@ static int do_tcp_server_start(uint16_t port)
 #endif
 	/* Open socket */
 	if (proxy.sec_tag == INVALID_SEC_TAG) {
-		proxy.sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		proxy.sock = socket(proxy.family, SOCK_STREAM, IPPROTO_TCP);
 	} else {
-		proxy.sock = socket(AF_INET, SOCK_STREAM|SOCK_NATIVE_TLS, IPPROTO_TLS_1_2);
+		proxy.sock = socket(proxy.family, SOCK_STREAM|SOCK_NATIVE_TLS, IPPROTO_TLS_1_2);
 	}
 	if (proxy.sock < 0) {
 		LOG_ERR("socket() failed: %d", -errno);
@@ -333,6 +333,8 @@ static int do_tcp_client_connect(const char *url,
 	slm_diag_clear_event(SLM_DIAG_CALL_FAIL);
 #endif
 	if (proxy.sec_tag != INVALID_SEC_TAG) {
+		int peer_verify = TLS_PEER_VERIFY_REQUIRED;
+
 		if (strlen(hostname) > 0) {
 			ret = setsockopt(proxy.sock, SOL_TLS,
 					 TLS_HOSTNAME, hostname,
@@ -345,8 +347,15 @@ static int do_tcp_client_connect(const char *url,
 			LOG_ERR("Failed to set TLS_HOSTNAME");
 			goto exit;
 		}
-	}
 
+		ret = setsockopt(proxy.sock, SOL_TLS, TLS_PEER_VERIFY, &peer_verify,
+				 sizeof(peer_verify));
+		if (ret) {
+			LOG_ERR("setsockopt(TLS_PEER_VERIFY) error: %d", errno);
+			ret = -errno;
+			goto exit;
+		}
+	}
 	/* Connect to remote host */
 	struct sockaddr sa = {
 		.sa_family = AF_UNSPEC
@@ -719,7 +728,7 @@ static int tcpsvr_input(int infd)
 	int ret;
 
 	if (fds[infd].fd == proxy.sock) {
-		socklen_t len = sizeof(struct sockaddr_in);
+		socklen_t len = (proxy.family == AF_INET) ? sizeof(remote) : sizeof(remotev6);
 		char peer_addr[INET6_ADDRSTRLEN];
 		bool filtered = true;
 
@@ -734,7 +743,7 @@ static int tcpsvr_input(int infd)
 				return 0;
 			} else if (proxy.ar == AT_TCP_SVR_AR_REJECT) {
 				proxy.ar = AT_TCP_SVR_AR_UNKNOWN;
-				if(proxy.family == AF_INET){	
+				if(proxy.family == AF_INET) {
 					ret = accept(proxy.sock,
 							(struct sockaddr *)&remote, &len);
 				} else {
@@ -749,7 +758,7 @@ static int tcpsvr_input(int infd)
 				proxy.ar = AT_TCP_SVR_AR_UNKNOWN;
 			}
 		}
-		if(proxy.family == AF_INET){	
+		if(proxy.family == AF_INET) {
 			ret = accept(proxy.sock,
 					(struct sockaddr *)&remote, &len);
 		} else {
@@ -834,7 +843,6 @@ static int tcpsvr_input(int infd)
 static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 {
 	int ret, current_size;
-	bool in_datamode;
 
 	ARG_UNUSED(p1);
 	ARG_UNUSED(p2);
@@ -934,11 +942,10 @@ exit:
 		proxy.sec_tag = INVALID_SEC_TAG;
 	}
 #endif
-	in_datamode = proxy.datamode;
 	slm_at_tcp_proxy_init();
 	sprintf(rsp_buf, "\r\n#XTCPSVR: %d,\"stopped\"\r\n", ret);
 	rsp_send(rsp_buf, strlen(rsp_buf));
-	if (in_datamode) {
+	if (proxy.datamode) {
 		if (exit_datamode()) {
 			sprintf(rsp_buf, "\r\n#XTCPSVR: 0,\"datamode\"\r\n");
 			rsp_send(rsp_buf, strlen(rsp_buf));
@@ -955,7 +962,6 @@ static void tcpcli_thread_func(void *p1, void *p2, void *p3)
 #if defined(CONFIG_SLM_DIAG)
 	int nw_reg_1 = 0, nw_reg_2 = 0;
 #endif
-	bool in_datamode;
 
 	ARG_UNUSED(p1);
 	ARG_UNUSED(p2);
@@ -1017,11 +1023,10 @@ exit:
 			LOG_WRN("close(%d) fail: %d", proxy.sock, -errno);
 		}
 	}
-	in_datamode = proxy.datamode;
 	slm_at_tcp_proxy_init();
 	sprintf(rsp_buf, "\r\n#XTCPCLI: %d,\"disconnected\"\r\n", ret);
 	rsp_send(rsp_buf, strlen(rsp_buf));
-	if (in_datamode) {
+	if (proxy.datamode) {
 		if (exit_datamode()) {
 			sprintf(rsp_buf, "\r\n#XTCPCLI: 0,\"datamode\"\r\n");
 			rsp_send(rsp_buf, strlen(rsp_buf));
@@ -1369,7 +1374,7 @@ int handle_at_tcp_client(enum at_cmd_type cmd_type)
 				return -EINVAL;
 			}
 #endif
-			if(op == CLIENT_CONNECT || op == CLIENT_CONNECT_WITH_DATAMODE){
+			if(op == CLIENT_CONNECT || op == CLIENT_CONNECT_WITH_DATAMODE) {
 				proxy.family = AF_INET;
 			} else if (op == CLIENT_CONNECT6 || op == CLIENT_CONNECT6_WITH_DATAMODE) {
 				proxy.family = AF_INET6;
