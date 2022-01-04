@@ -1,0 +1,58 @@
+{
+  "psa_framework_version": 1.0,
+  "name": "TFM_SP_EXAMPLE_OOT",
+  "type": "APPLICATION-ROT",
+  "priority": "LOW",
+  "entry_point": "example_main",
+  "stack_size": "0x0200",
+  "secure_functions": [
+    {
+      "name": "ROT_A_INPUT_OUTPUT",
+      "signal": "ROT_A_INPUT_OUTPUT_REQ",
+      "non_secure_clients": true,
+      "version": 1,
+      "version_policy": "STRICT"
+    },
+    {
+      "name": "ROT_B_CRYPTO_HASH",
+      "signal": "ROT_B_CRYPTO_HASH_REQ",
+      "non_secure_clients": true,
+      "version": 1,
+      "version_policy": "STRICT"
+    },        
+    {
+      "name": "ROT_C_CRYPTO_RAND",
+      "signal": "ROT_C_CRYPTO_RAND_REQ",
+      "non_secure_clients": true,
+      "version": 1,
+      "version_policy": "STRICT"
+    },    
+ ],  
+  "services" : [
+    {
+      "name": "ROT_A_INPUT_OUTPUT",
+      "sid": "0x1000F000",
+      "non_secure_clients": true,
+      "version": 5478,
+      "version_policy": "STRICT"
+    },
+    {
+      "name": "ROT_B_CRYPTO_HASH",
+      "sid": "0x1000F001",
+      "non_secure_clients": true,
+      "version": 5487,
+      "version_policy": "STRICT"
+    },
+    {
+    "name": "ROT_C_CRYPTO_RAND",
+    "sid": "0x1000F002",
+    "non_secure_clients": true,
+    "version": 9487,
+    "version_policy": "STRICT"
+   },
+  ],
+
+  "dependencies": [
+    "TFM_CRYPTO"
+  ],
+}

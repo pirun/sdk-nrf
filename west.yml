@@ -35,7 +35,8 @@ manifest:
       url-base: https://github.com/PelionIoT
     - name: memfault
       url-base: https://github.com/memfault
-
+    - name: pirun
+      url-base: https://github.com/pirun
   # If not otherwise specified, the projects below should be obtained
   # from the ncs remote.
   defaults:
@@ -107,7 +108,8 @@ manifest:
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tfm
-      revision: v1.3.99-ncs2
+      revision: v1.3.99-ncs2_tfm_custom_service
+      remote: pirun
     - name: tfm-mcuboot # This is used by the trusted-firmware-m module.
       repo-path: sdk-mcuboot
       path: modules/tee/tfm-mcuboot

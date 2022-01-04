@@ -1,0 +1,30 @@
+#-------------------------------------------------------------------------------
+# Copyright (c) 2018-2021, Arm Limited. All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+#-------------------------------------------------------------------------------
+
+{
+  "name": "TF-M secure partition manifests",
+  "type": "manifest_list",
+  "version_major": 0,
+  "version_minor": 1,
+  "manifest_list": [
+    {
+      "name": "Example Service",
+      "short_name": "TFM_SP_EXAMPLE_OOT",
+      "manifest": "${APPLICATION_SOURCE_DIR}/EXAMPLE/tfm_example.yaml",
+      "output_path": "${CMAKE_BINARY_DIR}/tfm/EXAMPLE",
+      "tfm_partition_ipc": true,
+      "conditional": "TFM_PARTITION_EXAMPLE_OOT",
+      "version_major": 0,
+      "version_minor": 1,
+      "linker_pattern": {
+        "library_list": [
+           "*tfm_*example.*"
+         ],
+      }
+    },
+  ]
+}

@@ -1,0 +1,17 @@
+sample:
+    description: This app provides an example of using TF-M custom secure partition on the secure
+        side, with Zephyr on the NS side, using IPC or LIBrary.The source code of Secure partition
+        located with application.
+    name: TF-M EXAMPLE SECURE PARTITION client
+tests:
+    sample.tfm_secure_partition_example:
+        tags: introduction tfm
+        platform_allow: nrf9160dk_nrf9160_ns
+        harness: console
+        harness_config:
+          type: multi_line
+          regex:
+            - "The version of the PSA Framework API is"
+            - "The minor version is"
+            - "Connect success!"
+            - "TF-M IPC on .*"
