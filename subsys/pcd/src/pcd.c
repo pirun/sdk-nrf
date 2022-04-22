@@ -27,6 +27,8 @@ LOG_MODULE_REGISTER(pcd, CONFIG_PCD_LOG_LEVEL);
 #include <hal/nrf_reset.h>
 #include <hal/nrf_spu.h>
 
+/* FIXME: Hardcoded here till one day I found solution to retrive this value correctly */
+#define CONFIG_PCD_NET_CORE_APP_OFFSET 0x8800
 /** Offset which the application should be copied into */
 #ifdef CONFIG_PCD_NET_CORE_APP_OFFSET
 #define PCD_NET_CORE_APP_OFFSET CONFIG_PCD_NET_CORE_APP_OFFSET

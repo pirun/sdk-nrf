@@ -212,7 +212,14 @@ void main(void)
 
 	ret = audio_datapath_tone_play(1000, 400, 1);
 	ERR_CHK(ret);
-
+	/* Enable MCUMGR */
+	#if IS_ENABLED(CONFIG_MCUMGR)
+		img_mgmt_register_group();
+		os_mgmt_register_group();
+	#endif
+	#if IS_ENABLED(CONFIG_MCUMGR_SMP_BT)
+		smp_bt_register();
+	#endif
 	while (1) {
 		streamctrl_event_handler();
 		STACK_USAGE_PRINT("main", &z_main_thread);

@@ -33,11 +33,13 @@ TARGET_DEBUG_FOLDER = 'build_debug'
 
 COMP_FLAG_DEV_HEADSET = ' -DOVERLAY_CONFIG="overlay-headset.conf '
 COMP_FLAG_DEV_GATEWAY = ' -DOVERLAY_CONFIG="overlay-gateway.conf '
-COMP_FLAG_RELEASE = ' overlay-release.conf"'
-COMP_FLAG_DEBUG = ' overlay-debug.conf"'
+COMP_FLAG_RELEASE = ' overlay-release.conf '
+COMP_FLAG_DEBUG = ' overlay-debug.conf '
 
 PRISTINE_FLAG = ' --pristine'
 
+USE_MCUBOOT=False
+USE_SDCARD=False
 
 def __print_add_color(status):
     if status == SelectFlags.FAIL:
@@ -101,9 +103,14 @@ def __build_cmd_get(core, device, build, pristine):
         compiler_flags += " " + COMP_FLAG_RELEASE
         dest_folder += "/" + TARGET_RELEASE_FOLDER
 
+    if USE_MCUBOOT:
+        compiler_flags += ' overlay-dfu.conf " -DCONFIG_SHELL=n -DCONFIG_FS_FATFS_EXFAT=n -DCONFIG_NCS_INCLUDE_RPMSG_CHILD_IMAGE=y -Dmcuboot_CONFIG_PCD_APP=y -Dmcuboot_CONFIG_BOARD_ENABLE_CPUNET=n '
+    else:
+        compiler_flags += '"'
+    if USE_SDCARD:
+        compiler_flags += ' -Dmcuboot_OVERLAY_CONFIG=prj_minimal_sdcard.conf -Dmcuboot_CONFIG_MCUBOOT_SD_UPDATE=y -Dmcuboot_CONFIG_HW_CC3XX=n -Dmcuboot_CONFIG_NRF_CC3XX_PLATFORM=n -Dmcuboot_CONFIG_PM_PARTITION_SIZE_MCUBOOT=0xE000 \'-DCONFIG_MCUBOOT_IMAGE_VERSION="1.0.0+0"\' -Dhci_rpmsg_CONFIG_FW_INFO_FIRMWARE_VERSION=1 '
     if pristine:
         build_cmd += " -p "
-
     return build_cmd, dest_folder, compiler_flags
 
 
@@ -129,6 +136,11 @@ def __build_module(build_config):
     if ret_val:
         raise Exception("cmake error: " + str(ret_val))
 
+    if USE_MCUBOOT:
+        pcft_sign_cmd = "${PWD}/manually_sign.sh ${PWD}/../../shifted_bin/ble5-ctr-rpmsg.hex " + dest_folder
+        ret_val =  os.system(pcft_sign_cmd)
+    if ret_val:
+        raise Exception("generate pcft+b0n error: " + str(ret_val))
 
 def __find_snr():
     """Rebooting or programming requires connected programmer/debugger"""
@@ -155,21 +167,28 @@ def __populate_hex_paths(dev, options):
             if file.endswith(".hex"):
                 hex_files_found.append(file)
 
-        if len(hex_files_found) == 0:
-            raise Exception("Found no net core hex file in folder: " +
-                            dest_folder)
-        elif len(hex_files_found) > 1:
-            raise Exception("Found more than one hex file in folder: " +
-                            dest_folder)
+        if USE_MCUBOOT == True:
+            dev.hex_path_net = dest_folder + "/pcft_CPUNET.hex"
         else:
-            dev.hex_path_net = dest_folder + "/" + hex_files_found[0]
-            print("Using NET hex: " + dev.hex_path_net)
+            hex_files_found.remove("pcft_CPUNET.hex")
+            if len(hex_files_found) == 0:
+                raise Exception("Found no net core hex file in folder: " +
+                                dest_folder)
+            elif len(hex_files_found) > 1:
+                raise Exception("Found more than one hex file in folder: " +
+                                dest_folder)
+            else:
+                dev.hex_path_net = dest_folder + "/" + hex_files_found[0]
+
+        print("Using NET hex: " + dev.hex_path_net)
 
     if dev.core_app_programmed == SelectFlags.TBD:
         _, dest_folder, _ = __build_cmd_get("app", dev.nrf5340_audio_dk_device,
                                             options.build, options.pristine)
-        dev.hex_path_app = dest_folder + "/zephyr/zephyr.hex"
-
+        if USE_MCUBOOT == True:
+            dev.hex_path_app = dest_folder + "/zephyr/merged.hex"
+        else:
+            dev.hex_path_app = dest_folder + "/zephyr/zephyr.hex"
 
 def __finish(device_list):
     """Finish script. Print report"""
@@ -224,7 +243,22 @@ def __main():
                         const=True,
                         help="Run nrfjprog sequentially instead of in \
                         parallel.")
+    parser.add_argument("-m", "--mcuboot", default=False,
+                        action='store_true',
+                        help="app core use merged hex")
+    parser.add_argument("-S", "--sdcard", default=False,
+                        action='store_true',
+                        help="enable mcuboot sdcard dfu")
+
     options = parser.parse_args(args=sys.argv[1:])
+
+    global USE_MCUBOOT
+    global USE_SDCARD
+
+    USE_MCUBOOT = options.mcuboot
+    if (options.sdcard == True):
+        USE_SDCARD = options.sdcard
+        USE_MCUBOOT = options.mcuboot
 
     boards_snr_connected = __find_snr()
 
@@ -296,7 +330,10 @@ def __main():
                                                options.pristine,
                                                options.build))
         if options.core == "both" or options.core == "net":
-            print("Net core uses precompiled hex")
+            if USE_MCUBOOT:
+                print("Net core uses b0n+precompiled hex")
+            else:
+                print("Net core uses precompiled hex")
 
         for build_cfg in build_configs:
             __build_module(build_cfg)

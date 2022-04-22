@@ -299,7 +299,9 @@ static int uart_init(void)
 	if (tx) {
 		pos = snprintf(tx->data, sizeof(tx->data),
 			       "Starting Nordic UART service example\r\n");
-
+		#if IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT)
+		LOG_INF("%s", CONFIG_MCUBOOT_IMAGE_VERSION);
+		#endif
 		if ((pos < 0) || (pos >= sizeof(tx->data))) {
 			k_free(tx);
 			LOG_ERR("snprintf returned %d", pos);
@@ -316,7 +318,14 @@ static int uart_init(void)
 		LOG_ERR("Cannot display welcome message (err: %d)", err);
 		return err;
 	}
+	#if IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT)
+		k_sleep(K_MSEC(1000));
+		pos = snprintf(tx->data, sizeof(tx->data),
+			       "%s \r\n", log_strdup(CONFIG_MCUBOOT_IMAGE_VERSION));
+		tx->len = pos;
+		err = uart_tx(uart, tx->data, tx->len, SYS_FOREVER_MS);
 
+	#endif
 	return uart_rx_enable(uart, rx->data, sizeof(rx->data), 50);
 }
 
@@ -598,7 +607,11 @@ void main(void)
 		LOG_ERR("Advertising failed to start (err %d)", err);
 		return;
 	}
-
+	#if IS_ENABLED(CONFIG_MCUMGR)
+		img_mgmt_register_group();
+		os_mgmt_register_group();
+		smp_bt_register();
+	#endif
 	for (;;) {
 		dk_set_led(RUN_STATUS_LED, (++blink_status) % 2);
 		k_sleep(K_MSEC(RUN_LED_BLINK_INTERVAL));

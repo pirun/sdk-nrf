@@ -33,13 +33,15 @@ manifest:
       url-base: https://github.com/NordicSemiconductor
     - name: memfault
       url-base: https://github.com/memfault
+    - name: pirun
+      url-base: https://github.com/pirun
 
   # If not otherwise specified, the projects below should be obtained
   # from the ncs remote.
   defaults:
     remote: ncs
 
-  group-filter: [-homekit, -nrf-802154, -find-my, -nrf5340_audio]
+  group-filter: [-homekit, -nrf-802154, -find-my, +nrf5340_audio]
 
   # "projects" is a list of git repositories which make up the NCS
   # source code.
@@ -100,7 +102,8 @@ manifest:
     # changes.
     - name: mcuboot
       repo-path: sdk-mcuboot
-      revision: 132a537bf94044be93240a43b7622b3040bd017e
+      revision: audio_le_dfu
+      remote: pirun
       path: bootloader/mcuboot
     - name: mbedtls-nrf
       path: mbedtls
