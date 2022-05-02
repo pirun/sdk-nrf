@@ -105,6 +105,8 @@ def __build_cmd_get(core, device, build, pristine):
 
     if USE_MCUBOOT:
         compiler_flags += ' overlay-dfu.conf " -DCONFIG_SHELL=n -DCONFIG_FS_FATFS_EXFAT=n -DCONFIG_NCS_INCLUDE_RPMSG_CHILD_IMAGE=y -Dmcuboot_CONFIG_PCD_APP=y -Dmcuboot_CONFIG_BOARD_ENABLE_CPUNET=n '
+        #Uncomment this line for B0n minimal size(10KB) build
+        #compiler_flags += ' -Dhci_rpmsg_b0n_OVERLAY_CONFIG=overlay-minimal-size.conf '
     else:
         compiler_flags += '"'
     if USE_SDCARD:
@@ -170,7 +172,8 @@ def __populate_hex_paths(dev, options):
         if USE_MCUBOOT == True:
             dev.hex_path_net = dest_folder + "/pcft_CPUNET.hex"
         else:
-            hex_files_found.remove("pcft_CPUNET.hex")
+            if "pcft_CPUNET.hex" in hex_files_found:
+                hex_files_found.remove("pcft_CPUNET.hex")
             if len(hex_files_found) == 0:
                 raise Exception("Found no net core hex file in folder: " +
                                 dest_folder)
