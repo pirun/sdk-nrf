@@ -30,6 +30,8 @@ TARGET_DEV_GATEWAY_FOLDER = 'build/dev_gateway'
 TARGET_DEV_BLE_FOLDER = 'dev_ble'
 TARGET_RELEASE_FOLDER = 'build_release'
 TARGET_DEBUG_FOLDER = 'build_debug'
+TARGET_CORE_APP_FOLDER_ABS = os.getcwd() + "/" + TARGET_CORE_APP_FOLDER
+PWD=""
 
 COMP_FLAG_DEV_HEADSET = ' -DOVERLAY_CONFIG="overlay-headset.conf '
 COMP_FLAG_DEV_GATEWAY = ' -DOVERLAY_CONFIG="overlay-gateway.conf '
@@ -40,7 +42,7 @@ PRISTINE_FLAG = ' --pristine'
 
 USE_MCUBOOT=False
 USE_SDCARD=False
-
+USE_EXTERNAL_FLASH=False
 def __print_add_color(status):
     if status == SelectFlags.FAIL:
         return Fore.RED + status + Style.RESET_ALL
@@ -104,13 +106,15 @@ def __build_cmd_get(core, device, build, pristine):
         dest_folder += "/" + TARGET_RELEASE_FOLDER
 
     if USE_MCUBOOT:
-        compiler_flags += ' overlay-dfu.conf " -DCONFIG_SHELL=n -DCONFIG_FS_FATFS_EXFAT=n -DCONFIG_NCS_INCLUDE_RPMSG_CHILD_IMAGE=y -Dmcuboot_CONFIG_PCD_APP=y -Dmcuboot_CONFIG_BOARD_ENABLE_CPUNET=n '
+        compiler_flags += ' overlay-dfu.conf " -Dmcuboot_OVERLAY_CONFIG={}/overlay-mcuboot.conf'.format(TARGET_CORE_APP_FOLDER_ABS)
         #Uncomment this line for B0n minimal size(10KB) build
         #compiler_flags += ' -Dhci_rpmsg_b0n_OVERLAY_CONFIG=overlay-minimal-size.conf '
+    elif USE_EXTERNAL_FLASH:
+        compiler_flags += ' overlay-dfu_external_flash.conf " -DDTC_OVERLAY_FILE=overlay-dfu_external_flash.overlay -DPM_STATIC_YML_FILE=pm_dfu_external_flash.yml -Dmcuboot_OVERLAY_CONFIG={}/overlay-mcuboot_external_flash.conf  -Dmcuboot_DTC_OVERLAY_FILE={}/overlay-dfu_external_flash.overlay -Dmcuboot_PM_STATIC_YML_FILE={}/pm_dfu_external_flash.yml -Dhci_rpmsg_CONFIG_FW_INFO_FIRMWARE_VERSION=1 '.format(TARGET_CORE_APP_FOLDER_ABS, TARGET_CORE_APP_FOLDER_ABS, TARGET_CORE_APP_FOLDER_ABS)
+    elif USE_SDCARD:
+        compiler_flags += ' overlay-dfu.conf " -Dmcuboot_OVERLAY_CONFIG={}/overlay-mcuboot_sdcard.conf \'-DCONFIG_MCUBOOT_IMAGE_VERSION="1.0.0+0"\' -Dmcuboot_DTC_OVERLAY_FILE={}/overlay-mcuboot_sdcard.overlay -Dhci_rpmsg_CONFIG_FW_INFO_FIRMWARE_VERSION=1 '.format(TARGET_CORE_APP_FOLDER_ABS, TARGET_CORE_APP_FOLDER_ABS)
     else:
         compiler_flags += '"'
-    if USE_SDCARD:
-        compiler_flags += ' -Dmcuboot_OVERLAY_CONFIG=prj_minimal_sdcard.conf -Dmcuboot_CONFIG_MCUBOOT_SD_UPDATE=y -Dmcuboot_CONFIG_HW_CC3XX=n -Dmcuboot_CONFIG_NRF_CC3XX_PLATFORM=n -Dmcuboot_CONFIG_PM_PARTITION_SIZE_MCUBOOT=0xE000 \'-DCONFIG_MCUBOOT_IMAGE_VERSION="1.0.0+0"\' -Dhci_rpmsg_CONFIG_FW_INFO_FIRMWARE_VERSION=1 '
     if pristine:
         build_cmd += " -p "
     return build_cmd, dest_folder, compiler_flags
@@ -138,8 +142,8 @@ def __build_module(build_config):
     if ret_val:
         raise Exception("cmake error: " + str(ret_val))
 
-    if USE_MCUBOOT:
-        pcft_sign_cmd = "${PWD}/manually_sign.sh ${PWD}/../../shifted_bin/ble5-ctr-rpmsg.hex " + dest_folder
+    if USE_MCUBOOT or USE_EXTERNAL_FLASH or USE_SDCARD:
+        pcft_sign_cmd = "{}/manually_sign.sh {}/../../shifted_bin/ble5-ctr-rpmsg.hex ".format(PWD, PWD) + dest_folder
         ret_val =  os.system(pcft_sign_cmd)
     if ret_val:
         raise Exception("generate pcft+b0n error: " + str(ret_val))
@@ -169,7 +173,7 @@ def __populate_hex_paths(dev, options):
             if file.endswith(".hex"):
                 hex_files_found.append(file)
 
-        if USE_MCUBOOT == True:
+        if USE_MCUBOOT or USE_EXTERNAL_FLASH or USE_SDCARD:
             dev.hex_path_net = dest_folder + "/pcft_CPUNET.hex"
         else:
             if "pcft_CPUNET.hex" in hex_files_found:
@@ -188,7 +192,7 @@ def __populate_hex_paths(dev, options):
     if dev.core_app_programmed == SelectFlags.TBD:
         _, dest_folder, _ = __build_cmd_get("app", dev.nrf5340_audio_dk_device,
                                             options.build, options.pristine)
-        if USE_MCUBOOT == True:
+        if USE_MCUBOOT or USE_EXTERNAL_FLASH or USE_SDCARD:
             dev.hex_path_app = dest_folder + "/zephyr/merged.hex"
         else:
             dev.hex_path_app = dest_folder + "/zephyr/zephyr.hex"
@@ -246,10 +250,15 @@ def __main():
                         const=True,
                         help="Run nrfjprog sequentially instead of in \
                         parallel.")
-    parser.add_argument("-m", "--mcuboot", default=False,
+    group = parser.add_mutually_exclusive_group()
+
+    group.add_argument("-m", "--mcuboot", default=False,
                         action='store_true',
                         help="app core use merged hex")
-    parser.add_argument("-S", "--sdcard", default=False,
+    group.add_argument("-e", "--external_flash", default=False,
+                        action='store_true',
+                        help="enable external flash dfu")
+    group.add_argument("-S", "--sdcard", default=False,
                         action='store_true',
                         help="enable mcuboot sdcard dfu")
 
@@ -257,11 +266,18 @@ def __main():
 
     global USE_MCUBOOT
     global USE_SDCARD
+    global USE_EXTERNAL_FLASH
+    global PWD
 
-    USE_MCUBOOT = options.mcuboot
-    if (options.sdcard == True):
-        USE_SDCARD = options.sdcard
+    if (options.mcuboot == True):
         USE_MCUBOOT = options.mcuboot
+    elif (options.external_flash == True):
+        USE_EXTERNAL_FLASH = options.external_flash
+    elif (options.sdcard == True):
+        USE_SDCARD = options.sdcard
+    PWD=os.getcwd()
+    print (PWD)
+
 
     boards_snr_connected = __find_snr()
 
@@ -333,7 +349,7 @@ def __main():
                                                options.pristine,
                                                options.build))
         if options.core == "both" or options.core == "net":
-            if USE_MCUBOOT:
+            if USE_MCUBOOT or USE_EXTERNAL_FLASH or USE_SDCARD:
                 print("Net core uses b0n+precompiled hex")
             else:
                 print("Net core uses precompiled hex")
