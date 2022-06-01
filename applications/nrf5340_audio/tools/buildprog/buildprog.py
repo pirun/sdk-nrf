@@ -43,6 +43,7 @@ PRISTINE_FLAG = ' --pristine'
 USE_MCUBOOT=False
 USE_SDCARD=False
 USE_EXTERNAL_FLASH=False
+USE_MIN_B0N=False
 def __print_add_color(status):
     if status == SelectFlags.FAIL:
         return Fore.RED + status + Style.RESET_ALL
@@ -107,12 +108,16 @@ def __build_cmd_get(core, device, build, pristine):
 
     if USE_MCUBOOT:
         compiler_flags += ' overlay-dfu.conf " -Dmcuboot_OVERLAY_CONFIG={}/overlay-mcuboot.conf'.format(TARGET_CORE_APP_FOLDER_ABS)
-        #Uncomment this line for B0n minimal size(10KB) build
-        #compiler_flags += ' -Dhci_rpmsg_b0n_OVERLAY_CONFIG=overlay-minimal-size.conf '
+        if USE_MIN_B0N:
+            compiler_flags += ' -Dhci_rpmsg_b0n_OVERLAY_CONFIG=overlay-minimal-size.conf '
     elif USE_EXTERNAL_FLASH:
         compiler_flags += ' overlay-dfu_external_flash.conf " -DDTC_OVERLAY_FILE=overlay-dfu_external_flash.overlay -DPM_STATIC_YML_FILE=pm_dfu_external_flash.yml -Dmcuboot_OVERLAY_CONFIG={}/overlay-mcuboot_external_flash.conf  -Dmcuboot_DTC_OVERLAY_FILE={}/overlay-dfu_external_flash.overlay -Dmcuboot_PM_STATIC_YML_FILE={}/pm_dfu_external_flash.yml -Dhci_rpmsg_CONFIG_FW_INFO_FIRMWARE_VERSION=1 '.format(TARGET_CORE_APP_FOLDER_ABS, TARGET_CORE_APP_FOLDER_ABS, TARGET_CORE_APP_FOLDER_ABS)
+        if USE_MIN_B0N:
+            compiler_flags += ' -Dhci_rpmsg_b0n_OVERLAY_CONFIG=overlay-minimal-size.conf '
     elif USE_SDCARD:
         compiler_flags += ' overlay-dfu.conf " -Dmcuboot_OVERLAY_CONFIG={}/overlay-mcuboot_sdcard.conf \'-DCONFIG_MCUBOOT_IMAGE_VERSION="1.0.0+0"\' -Dmcuboot_DTC_OVERLAY_FILE={}/overlay-mcuboot_sdcard.overlay -Dhci_rpmsg_CONFIG_FW_INFO_FIRMWARE_VERSION=1 '.format(TARGET_CORE_APP_FOLDER_ABS, TARGET_CORE_APP_FOLDER_ABS)
+        if USE_MIN_B0N:
+            compiler_flags += ' -Dhci_rpmsg_b0n_OVERLAY_CONFIG=overlay-minimal-size.conf '
     else:
         compiler_flags += '"'
     if pristine:
@@ -143,7 +148,10 @@ def __build_module(build_config):
         raise Exception("cmake error: " + str(ret_val))
 
     if USE_MCUBOOT or USE_EXTERNAL_FLASH or USE_SDCARD:
-        pcft_sign_cmd = "{}/manually_sign.sh {}/../../shifted_bin/ble5-ctr-rpmsg.hex ".format(PWD, PWD) + dest_folder
+        if USE_MIN_B0N:
+            pcft_sign_cmd = "{}/manually_sign.sh {}/../../shifted_bin/ble5-ctr-rpmsg_shifted_min.hex ".format(PWD, PWD) + dest_folder
+        else:
+            pcft_sign_cmd = "{}/manually_sign.sh {}/../../shifted_bin/ble5-ctr-rpmsg_shifted.hex ".format(PWD, PWD) + dest_folder
         ret_val =  os.system(pcft_sign_cmd)
     if ret_val:
         raise Exception("generate pcft+b0n error: " + str(ret_val))
@@ -250,11 +258,14 @@ def __main():
                         const=True,
                         help="Run nrfjprog sequentially instead of in \
                         parallel.")
-    group = parser.add_mutually_exclusive_group()
-
-    group.add_argument("-m", "--mcuboot", default=False,
+    #DFU relative option
+    parser.add_argument("-m", "--min_b0n", default=False,
                         action='store_true',
-                        help="app core use merged hex")
+                        help="net core bootloader use minimal size build")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-M", "--mcuboot", default=False,
+                        action='store_true',
+                        help="enable internal flash dfu")
     group.add_argument("-e", "--external_flash", default=False,
                         action='store_true',
                         help="enable external flash dfu")
@@ -263,12 +274,14 @@ def __main():
                         help="enable mcuboot sdcard dfu")
 
     options = parser.parse_args(args=sys.argv[1:])
-
     global USE_MCUBOOT
     global USE_SDCARD
     global USE_EXTERNAL_FLASH
+    global USE_MIN_B0N
     global PWD
 
+    if (options.min_b0n == True):
+        USE_MIN_B0N = options.min_b0n
     if (options.mcuboot == True):
         USE_MCUBOOT = options.mcuboot
     elif (options.external_flash == True):

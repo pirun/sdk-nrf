@@ -1,1 +1,2 @@
-pcft 3251 normal b0n size
+ble5-ctr-rpmsg_shifted.hex pcft 3251 for normal size
+ble5-ctr-rpmsg_shifted_min.hex pcft 3251 for minimal b0n size

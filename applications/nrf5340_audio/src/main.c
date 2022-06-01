@@ -27,6 +27,13 @@
 #include "channel_assignment.h"
 #include "hw_codec.h"
 #include "audio_usb.h"
+#if IS_ENABLED(CONFIG_MCUMGR)
+#include <img_mgmt/img_mgmt.h>
+#include <os_mgmt/os_mgmt.h>
+#endif
+#if IS_ENABLED(CONFIG_MCUMGR_SMP_BT)
+#include <mgmt/mcumgr/smp_bt.h>
+#endif
 
 #include <logging/log.h>
 LOG_MODULE_REGISTER(main, CONFIG_LOG_MAIN_LEVEL);
