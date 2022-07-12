@@ -19,6 +19,10 @@
 
 #define MAX_SLM_SEC_TAG (INT_MAX/10)
 #define MIN_SLM_SEC_TAG 0
+#define MAX_MODEM_TLS_SEC_TAG 99
+#define MIN_NATIVE_TLS_SEC_TAG 100
+#define MAX_NATIVE_TLS_SEC_TAG 199
+#define NATIVE_TLS_SEC_TAG_COUNT (MAX_NATIVE_TLS_SEC_TAG - MIN_NATIVE_TLS_SEC_TAG + 1)
 
 /**
  * @brief Map SLM security tag to nRF security tag
@@ -44,6 +48,43 @@
  *         negative error code if failure.
  */
 nrf_sec_tag_t slm_tls_map_sectag(sec_tag_t sec_tag, uint16_t type);
+/**
+ * @brief Store a TLS credential in storage
+ *
+ * @param[in]  sec_tag security tag of the credential
+ * @param[in]  type TLS credential type, as used in AT%CMNG
+ * @param[in]  buf Buffer containing the credential
+ * @param[in]  len Size of the credential
+ *
+ * @return 0 if successful, negative error code if failure.
+ */
+int slm_tls_storage_set(sec_tag_t sec_tag, uint16_t type, const void *buf,
+			size_t len);
+
+/**
+ * @brief Get a TLS credential from storage
+ *
+ * @param[in]  sec_tag security tag of the credential
+ * @param[in]  type TLS credential type, as used in AT%CMNG
+ * @param[out] buf Buffer in which to write the credential
+ * @param[in]  buf_len Size of the buffer
+ * @param[out] len Size of the credential
+ *
+ * @return 0 if successful, negative error code if failure.
+ */
+int slm_tls_storage_get(sec_tag_t sec_tag, uint16_t type, void *buf,
+			size_t buf_len, size_t *len);
+
+/**
+ * @brief Remove a TLS credential from storage
+ *
+ * @param[in]  sec_tag security tag of the credential
+ * @param[in]  type TLS credential type, as used in AT%CMNG
+ *
+ * @return 0 if successful, negative error code if failure.
+ */
+int slm_tls_storage_remove(sec_tag_t sec_tag, uint16_t type);
+
 
 /**
  * @brief Load credential

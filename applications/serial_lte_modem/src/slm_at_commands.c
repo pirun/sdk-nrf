@@ -125,7 +125,8 @@ static int handle_at_slmver(enum at_cmd_type type)
 			STRINGIFY(NCS_VERSION_STRING));
 #else
 		sprintf(rsp_buf, "\r\n#XSLMVER: %s\r\n",
-			STRINGIFY(NCS_VERSION_STRING));
+			//
+			STRINGIFY(CONFIG_MCUBOOT_IMAGE_VERSION));
 #endif
 		rsp_send(rsp_buf, strlen(rsp_buf));
 		ret = 0;
@@ -448,6 +449,10 @@ int handle_at_dfu_get(enum at_cmd_type cmd_type);
 int handle_at_dfu_run(enum at_cmd_type cmd_type);
 #endif
 
+#if defined(CONFIG_SLM_NATIVE_TLS_PSA)
+int handle_at_tfm_attest(enum at_cmd_type cmd_type);
+int handle_at_tfm_private(enum at_cmd_type cmd_type);
+#endif
 static struct slm_at_cmd {
 	char *string;
 	slm_at_handler_t handler;
@@ -551,6 +556,11 @@ static struct slm_at_cmd {
 	{"AT#XDFUGET", handle_at_dfu_get},
 	{"AT#XDFURUN", handle_at_dfu_run},
 #endif
+#if defined(CONFIG_SLM_NATIVE_TLS_PSA)
+	{"AT#TFMATT", handle_at_tfm_attest},
+	{"AT#TFMPK", handle_at_tfm_private},
+#endif
+
 };
 
 int handle_at_clac(enum at_cmd_type cmd_type)

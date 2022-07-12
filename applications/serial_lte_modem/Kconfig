@@ -24,6 +24,44 @@ config SLM_AT_MAX_PARAM
 
 config SLM_NATIVE_TLS
 	bool "Use Zephyr mbedTLS"
+if SLM_NATIVE_TLS
+
+choice
+	prompt "Credential storage backend"
+	default SLM_NATIVE_TLS_PS if TFM_PARTITION_PROTECTED_STORAGE
+	default SLM_NATIVE_TLS_MODEM
+	help
+		Select which mechanism is used to store credentials
+	config SLM_NATIVE_TLS_MODEM
+		bool "Modem storage"
+		select MODEM_KEY_MGMT
+		help
+		  Credentials will be stored in the nRF9160 modem's storage.
+		  Security tag value will be offset and CA certificate slots are
+		  used. For details, see the slm_tls_map_sectag function.
+	config SLM_NATIVE_TLS_PS
+		bool "Protected Storage (TF-M)"
+		depends on TFM_PARTITION_PROTECTED_STORAGE
+		help
+		  Credentials will be stored using the PSA Protected Storage
+		  API. This requires that the application be built with TF-M.
+	config SLM_NATIVE_TLS_PSA
+		bool "Key Management (TF-M)"
+		help
+		  Credentials will be stored using the PSA Key management
+		  API. This requires that the application be built with TF-M.
+endchoice
+
+if SLM_NATIVE_TLS_PS
+config SLM_NATIVE_TLS_PS_WRITE_ONCE
+	bool "Write-once credentials"
+	default y
+	help
+		Credentials are written with the "write-once" attribute, meaning
+		that they cannot be modified, replaced or deleted by firmware.
+endif
+
+endif # SLM_NATIVE_TLS
 
 #
 # external XTAL for UART
