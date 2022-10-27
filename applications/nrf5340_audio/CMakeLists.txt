@@ -34,6 +34,13 @@ endif()
 add_compile_definitions(HEADSET=1)
 add_compile_definitions(GATEWAY=2)
 
+set(CONF_FILE prj.conf)
+set(FIND_MY_COMMON_CMAKE_DIR
+    "$ENV{ZEPHYR_BASE}/../find-my/samples/common/cmake/"
+    CACHE PATH "Common configuration directory")
+include(${FIND_MY_COMMON_CMAKE_DIR}/boilerplate_setup.cmake NO_POLICY_SCOPE)
+
+
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(NRF5340_AUDIO)

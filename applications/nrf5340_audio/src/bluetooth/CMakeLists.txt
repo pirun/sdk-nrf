@@ -37,3 +37,8 @@ elseif (CONFIG_TRANSPORT_BIS)
 else()
 	message(FATAL_ERROR "CIS or BIS mode must be chosen")
 endif()
+
+if (CONFIG_FMNA)
+		target_sources(app PRIVATE
+			${CMAKE_CURRENT_SOURCE_DIR}/le_audio_fmna.c)
+endif()

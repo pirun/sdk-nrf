@@ -228,11 +228,14 @@ void main(void)
 	ret = leds_set();
 	ERR_CHK(ret);
 
+#if defined(CONFIG_FMNA)
+	fmna_init();
+#endif
+
 	audio_system_init();
 
 	ret = streamctrl_start();
 	ERR_CHK(ret);
-
 	while (1) {
 		streamctrl_event_handler();
 		STACK_USAGE_PRINT("main", &z_main_thread);

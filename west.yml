@@ -37,7 +37,7 @@ manifest:
   defaults:
     remote: ncs
 
-  group-filter: [-homekit, -nrf-802154, -find-my]
+  group-filter: [-homekit, -nrf-802154, +find-my]
 
   # "projects" is a list of git repositories which make up the NCS
   # source code.

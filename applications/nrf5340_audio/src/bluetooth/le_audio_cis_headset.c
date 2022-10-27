@@ -317,7 +317,14 @@ static void connected_cb(struct bt_conn *conn, uint8_t err)
 static void disconnected_cb(struct bt_conn *conn, uint8_t reason)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
-
+#if defined(CONFIG_FMNA)
+	bool hs_adv_needed = true;
+	uint8_t conn_idx = bt_conn_index(conn);
+	LOG_INF("conn_idx %d", conn_idx);
+	if (conn_idx == 0) {
+		hs_adv_needed = false;
+	}
+#endif
 	if (conn != default_conn) {
 		LOG_WRN("Disconnected on wrong conn");
 		return;
@@ -329,7 +336,9 @@ static void disconnected_cb(struct bt_conn *conn, uint8_t reason)
 
 	bt_conn_unref(default_conn);
 	default_conn = NULL;
-
+#if defined(CONFIG_FMNA)
+	if (hs_adv_needed)
+#endif
 	advertising_start();
 }
 
