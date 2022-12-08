@@ -348,6 +348,9 @@ static bool nrf_profiler_RTT_send(struct log_event_buf *buf, uint8_t type_id)
 	size_t num_bytes_send = SEGGER_RTT_WriteNoLock(
 			CONFIG_NRF_PROFILER_NORDIC_RTT_CHANNEL_DATA,
 			buf->payload_start, data_len);
+	if (num_bytes_send != data_len) {
+		printk("num_bytes_send %d data_len %d\n", num_bytes_send, data_len);
+	}
 	return (num_bytes_send == data_len);
 }
 
@@ -362,7 +365,7 @@ static void nrf_profiler_fatal_error(void)
 			break;
 		}
 	}
-	k_oops();
+	//k_oops();
 }
 
 void nrf_profiler_log_send(struct log_event_buf *buf, uint16_t event_type_id)

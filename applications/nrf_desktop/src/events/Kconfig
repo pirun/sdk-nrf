@@ -120,3 +120,8 @@ config DESKTOP_INIT_LOG_HID_NOTIFICATION_EVENT
 endmenu
 
 endif
+
+config DESKTOP_CRC_ERROR_EVENT
+	bool "Count BLE crc error and raise events"
+	help
+	  Count BLE crc error in SDC_HCI_SUBEVENT_VS_QOS_CONN_EVENT_REPORT cb

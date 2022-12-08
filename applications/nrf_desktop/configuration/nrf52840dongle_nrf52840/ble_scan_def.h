@@ -16,6 +16,7 @@ const struct {} ble_scan_include_once;
 #include "ble_event.h"
 
 static const char *peer_name[] = {
-	[PEER_TYPE_MOUSE] = "Mouse nRF52 Desktop",
+//	[PEER_TYPE_MOUSE] = "Mouse nRF52 Desktop",
+	[PEER_TYPE_MOUSE] = "Mouse Happirun",
 	[PEER_TYPE_KEYBOARD] = "Keyboard nRF52 Desktop",
 };

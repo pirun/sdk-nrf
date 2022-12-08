@@ -29,6 +29,9 @@
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(MODULE, CONFIG_DESKTOP_BLE_QOS_LOG_LEVEL);
+#ifdef CONFIG_DESKTOP_CRC_ERROR_EVENT
+#include "crc_event.h"
+#endif
 
 #define INVALID_BLACKLIST 0xFFFF
 
@@ -103,6 +106,10 @@ static void ble_qos_thread_fn(void);
 static const struct device *const cdc_dev =
 	DEVICE_DT_GET_OR_NULL(DT_CHOSEN(ncs_ble_qos_uart));
 static uint32_t cdc_dtr;
+static uint32_t crc_error_count;
+static uint32_t crc_ok_count;
+static uint16_t crc_nak_count;
+static uint8_t crc_rx_timeout;
 
 enum ble_qos_opt {
 	BLE_QOS_OPT_BLACKLIST,
@@ -316,7 +323,7 @@ static void ble_chn_stats_print(bool update_channel_map)
 		LOG_ERR("Encoding error");
 		return;
 	}
-	send_uart_data(cdc_dev, (uint8_t *)str, str_len);
+	//send_uart_data(cdc_dev, (uint8_t *)str, str_len);
 
 	str_len = 0;
 	for (uint8_t i = 0; i < CHMAP_BLE_CHANNEL_COUNT; i++) {
@@ -340,7 +347,7 @@ static void ble_chn_stats_print(bool update_channel_map)
 		}
 
 		if (str_len >= ((sizeof(str) * 2) / 3)) {
-			send_uart_data(cdc_dev, (uint8_t *)str, str_len);
+			//send_uart_data(cdc_dev, (uint8_t *)str, str_len);
 			str_len = 0;
 		}
 	}
@@ -350,7 +357,7 @@ static void ble_chn_stats_print(bool update_channel_map)
 		LOG_ERR("Encoding error");
 		return;
 	}
-	send_uart_data(cdc_dev, (uint8_t *)str, str_len);
+	//send_uart_data(cdc_dev, (uint8_t *)str, str_len);
 }
 
 static void hid_pkt_stats_print(uint32_t ble_recv)
@@ -424,7 +431,43 @@ static bool on_vs_evt(struct net_buf_simple *buf)
 			evt->channel_index,
 			evt->crc_ok_count,
 			evt->crc_error_count);
+		crc_ok_count += evt->crc_ok_count;
+		crc_error_count += evt->crc_error_count;
+		crc_nak_count += evt->nak_count;
+		crc_rx_timeout += evt->rx_timeout;
+#ifdef CONFIG_DESKTOP_CRC_ERROR_EVENT
+		if (evt->crc_error_count > 0) {
+			struct ble_crc_event *event = new_ble_crc_event();
+
+			event->crc_ok_count = crc_ok_count;
+			event->crc_error_count = crc_error_count;
+			event->crc_error_count = crc_nak_count;
+			event->crc_error_count = crc_rx_timeout;
+			APP_EVENT_SUBMIT(event);
+		}
+#endif
+
+	if (IS_ENABLED(CONFIG_DESKTOP_BLE_QOS_STATS_PRINTOUT_ENABLE) &&
+	    IS_ENABLED(CONFIG_DESKTOP_HID_REPORT_MOUSE_SUPPORT)) {
+		char str[64];
+		int str_len = 0;
+
+		str_len = snprintf(
+			&str[str_len],
+			sizeof(str) - str_len,
+			"total crc err:%" PRIu8 " ok:%" PRIu8 "\nchn:%" PRIu8 " error :%" PRIu8
+			" ok :%" PRId16 "\n",
+			crc_error_count,
+			crc_ok_count,
+			evt->channel_index,
+			evt->crc_error_count,
+			evt->crc_ok_count);
+		if (evt->crc_error_count > 0) {
+			send_uart_data(cdc_dev, (uint8_t *)str, str_len);
+		}
+
 		return true;
+	}
 	default:
 		return false;
 	}

@@ -25,3 +25,6 @@ target_sources_ifdef(CONFIG_DESKTOP_USB_ENABLE app
 
 target_sources_ifdef(CONFIG_DESKTOP_HIDS_ENABLE app
 			PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/hids_event.c)
+
+target_sources_ifdef(CONFIG_DESKTOP_CRC_ERROR_EVENT app
+			PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/crc_event.c)
