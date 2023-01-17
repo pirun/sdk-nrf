@@ -13,6 +13,12 @@
 #define MODULE hid_forward
 #include <caf/events/module_state_event.h>
 
+#include <nrf_profiler.h>
+
+extern uint16_t ble_recv_id;
+extern void profile_no_data_event(uint16_t evt_id);
+
+
 #include "hid_report_desc.h"
 #include "config_channel_transport.h"
 
@@ -460,6 +466,7 @@ static uint8_t hogp_read(struct bt_hogp *hids_c,
 
 	forward_hid_report(per, report_id, data, size);
 
+	profile_no_data_event(ble_recv_id);
 	return BT_GATT_ITER_CONTINUE;
 }
 

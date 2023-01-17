@@ -302,7 +302,7 @@ static bool event_packet_is_discardable(const uint8_t *hci_buf)
 
 		switch (subevent) {
 		case SDC_HCI_SUBEVENT_VS_QOS_CONN_EVENT_REPORT:
-			return true;
+			return false;
 		default:
 			return false;
 		}

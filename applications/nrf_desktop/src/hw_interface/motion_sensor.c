@@ -240,6 +240,8 @@ static int motion_read(bool send_event)
 		return err;
 	}
 
+	value_x.val1 = 1;
+
 	static unsigned int nodata;
 	if (!value_x.val1 && !value_y.val1) {
 		if (nodata < NODATA_LIMIT) {

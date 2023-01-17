@@ -35,21 +35,30 @@ class StatsNordic():
         self.logger.addHandler(self.logger_console)
 
     def calculate_stats_preset1(self, start_meas, end_meas):
-        self.time_between_events("hid_mouse_event_dongle", EventState.SUBMIT,
-                                 "hid_report_sent_event_device", EventState.SUBMIT,
+        self.time_between_events("ble_recv", EventState.SUBMIT,
+                                 "ble_recv", EventState.SUBMIT,
                                  0.05, start_meas, end_meas)
-        self.time_between_events("hid_mouse_event_dongle", EventState.SUBMIT,
-                                 "hid_report_sent_event_device", EventState.SUBMIT,
+        self.time_between_events("app_sent", EventState.SUBMIT,
+                                 "app_sent", EventState.SUBMIT,
                                  0.05, start_meas, end_meas)
-        self.time_between_events("hid_report_sent_event_dongle", EventState.SUBMIT,
-                                 "hid_report_sent_event_dongle", EventState.SUBMIT,
+        self.time_between_events("ble_recv", EventState.SUBMIT,
+                                 "data_put", EventState.SUBMIT,
                                  0.05, start_meas, end_meas)
-        self.time_between_events("hid_mouse_event_dongle", EventState.SUBMIT,
-                                 "hid_report_sent_event_dongle", EventState.SUBMIT,
-                                 0.05, start_meas, end_meas)
-        self.time_between_events("hid_mouse_event_device", EventState.SUBMIT,
-                                 "hid_mouse_event_dongle", EventState.SUBMIT,
-                                 0.05, start_meas, end_meas)
+       # self.time_between_events("ble_recv", EventState.SUBMIT,
+       #                          "app_sent", EventState.SUBMIT,
+       #                          0.05, start_meas, end_meas)
+       # self.time_between_events("app_sent", EventState.SUBMIT,
+       #                          "ble_recv", EventState.SUBMIT,
+       #                          0.05, start_meas, end_meas)
+       # self.time_between_events("ble_crc_err", EventState.SUBMIT,
+       #                          "ble_crc_err", EventState.SUBMIT,
+       #                          0.05, start_meas, end_meas)
+       # self.time_between_events("ble_crc_nak", EventState.SUBMIT,
+       #                          "ble_crc_nak", EventState.SUBMIT,
+       #                          0.05, start_meas, end_meas)
+       # self.time_between_events("ble_crc_to", EventState.SUBMIT,
+       #                          "ble_crc_to", EventState.SUBMIT,
+       #                          0.05, start_meas, end_meas)
         plt.show()
 
     def _get_timestamps(self, event_name, event_state, start_meas, end_meas):

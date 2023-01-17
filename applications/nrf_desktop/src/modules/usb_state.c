@@ -13,6 +13,7 @@
 #include <zephyr/usb/usb_ch9.h>
 #include <zephyr/usb/class/usb_hid.h>
 
+#include <nrf_profiler.h>
 
 #define MODULE usb_state
 #include <caf/events/module_state_event.h>
@@ -63,6 +64,11 @@ static enum usb_state state;
 static struct usb_hid_device usb_hid_device[CONFIG_USB_HID_DEVICE_COUNT];
 
 static struct config_channel_transport cfg_chan_transport;
+
+extern uint16_t data_put_id;
+extern uint16_t app_sent_id;
+
+extern void profile_no_data_event(uint16_t evt_id);
 
 
 static struct usb_hid_device *dev_to_hid(const struct device *dev)
@@ -249,6 +255,7 @@ static void report_sent(const struct device *dev, bool error)
 
 static void report_sent_cb(const struct device *dev)
 {
+	profile_no_data_event(app_sent_id);
 	report_sent(dev, false);
 }
 
@@ -312,8 +319,11 @@ static void send_hid_report(const struct hid_report_event *event)
 		}
 	}
 
+
 	int err = hid_int_ep_write(usb_hid->dev, report_buffer,
 				   report_size, NULL);
+
+	profile_no_data_event(data_put_id);
 
 	if (err) {
 		LOG_ERR("Cannot send report (%d)", err);
