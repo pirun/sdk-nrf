@@ -18,6 +18,7 @@
 
 #define MODULE gzp
 #include <caf/events/module_state_event.h>
+#include <caf/events/click_event.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(MODULE, CONFIG_DESKTOP_GZP_LOG_LEVEL);
@@ -30,6 +31,7 @@ LOG_MODULE_REGISTER(MODULE, CONFIG_DESKTOP_GZP_LOG_LEVEL);
 #define KEEP_ALIVE_TIMEOUT_MS		(100 / 2)
 
 #define MAX_HID_REPORT_LENGTH		(MAX(REPORT_SIZE_MOUSE + 1, REPORT_SIZE_KEYBOARD_KEYS + 1))
+#define ON_START_CLICK_UPTIME_MAX	(6 * MSEC_PER_SEC)
 
 /* Gazell is currently supported only for HID peripherals that act as Gazell Devices. */
 BUILD_ASSERT(IS_ENABLED(CONFIG_DESKTOP_ROLE_HID_PERIPHERAL) &&
@@ -65,6 +67,7 @@ static uint8_t keyboard_data[REPORT_SIZE_KEYBOARD_KEYS + 1] = {REPORT_ID_KEYBOAR
 
 static uint8_t queued_report_id = REPORT_ID_COUNT;
 static bool keep_alive_needed;
+static bool pairing_erase_pending;
 
 static void periodic_work_fn(struct k_work *work);
 static void gzp_encrypted_sent_cb(bool success, void *context);
@@ -447,6 +450,11 @@ static void gzp_id_req_cb(enum gzp_id_req_res result, void *context)
 
 	__ASSERT_NO_MSG(state == STATE_GET_HOST_ID);
 
+	if (pairing_erase_pending) {
+		(void)k_work_reschedule(&periodic_work, K_NO_WAIT);
+		return;
+	}
+
 	if (result == GZP_ID_RESP_GRANTED) {
 		LOG_INF("Host ID request was successful");
 		state = STATE_ACTIVE;
@@ -464,6 +472,11 @@ static void gzp_address_req_cb(bool result, void *context)
 	__ASSERT_NO_MSG(!k_is_preempt_thread());
 
 	__ASSERT_NO_MSG(state == STATE_GET_SYSTEM_ADDRESS);
+
+	if (pairing_erase_pending) {
+		(void)k_work_reschedule(&periodic_work, K_NO_WAIT);
+		return;
+	}
 
 	if (result) {
 		LOG_INF("Address request was successful");
@@ -502,6 +515,10 @@ static void sent_cb(bool success)
 		if (queued_report_id != REPORT_ID_COUNT) {
 			send_hid_report_buffered(queued_report_id, false);
 			queued_report_id = REPORT_ID_COUNT;
+		}
+
+		if (pairing_erase_pending) {
+			(void)k_work_reschedule(&periodic_work, K_NO_WAIT);
 		}
 	}
 }
@@ -556,12 +573,36 @@ static void keep_alive(void)
 	(void)k_work_reschedule(&periodic_work, K_MSEC(KEEP_ALIVE_TIMEOUT_MS));
 }
 
+static void gazell_pairing_erase(void)
+{
+	__ASSERT_NO_MSG(sent_hid_report.packet_cnt == 0);
+
+	gzp_erase_pairing_data();
+
+	if (gzp_get_pairing_status() == -2) {
+		LOG_INF("Erased Gazell pairing data");
+		state = STATE_GET_SYSTEM_ADDRESS;
+	} else {
+		LOG_ERR("Failed to erase Gazell pairing data");
+		state = STATE_ERROR;
+	}
+}
+
 static void periodic_work_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
 
 	__ASSERT_NO_MSG(!k_is_in_isr());
 	__ASSERT_NO_MSG(!k_is_preempt_thread());
+
+	if (pairing_erase_pending) {
+		gazell_pairing_erase();
+		pairing_erase_pending = false;
+
+		if (state == STATE_ERROR) {
+			return;
+		}
+	}
 
 	if (state == STATE_ACTIVE) {
 		keep_alive();
@@ -626,28 +667,6 @@ static bool gazell_state_update(bool enable)
 	return success;
 }
 
-static enum state gazell_get_pairing_module_state(void)
-{
-	enum state ret;
-	int8_t pairing_status = gzp_get_pairing_status();
-
-	if (pairing_status == -2) {
-		LOG_INF("Pairing database is empty");
-		ret = STATE_GET_SYSTEM_ADDRESS;
-	} else if (pairing_status == -1) {
-		LOG_INF("Has system address but no Host ID");
-		ret = STATE_GET_HOST_ID;
-	} else if (pairing_status >= 0) {
-		LOG_INF("Has system address and Host ID");
-		ret = STATE_ACTIVE;
-	} else {
-		LOG_ERR("gzp_get_pairing_status returned unhandled value: %" PRIi8, pairing_status);
-		ret = STATE_ERROR;
-	}
-
-	return ret;
-}
-
 static int module_init(void)
 {
 	k_work_init_delayable(&periodic_work, periodic_work_fn);
@@ -656,8 +675,14 @@ static int module_init(void)
 		return -EIO;
 	}
 
-	if (!gazell_state_update(true)) {
-		return -EIO;
+	if (pairing_erase_pending) {
+		periodic_work_fn(NULL);
+		return 0;
+	}
+
+	if (pairing_erase_pending) {
+		periodic_work_fn(NULL);
+		return 0;
 	}
 
 	state = gazell_get_pairing_module_state();
@@ -702,7 +727,7 @@ static bool hid_report_event_handler(const struct hid_report_event *event)
 		return false;
 	}
 
-	if (state != STATE_ACTIVE) {
+	if ((state != STATE_ACTIVE) || pairing_erase_pending) {
 		/* Gazell is not active, report error. */
 		broadcast_hid_report_sent(report_id, true);
 		return false;
@@ -738,6 +763,45 @@ static bool module_state_event_handler(const struct module_state_event *event)
 	return false;
 }
 
+static bool click_event_handler(const struct click_event *event)
+{
+	if (state == STATE_ERROR) {
+		/* Ignore event. */
+		return false;
+	}
+
+	if (event->key_id != CONFIG_DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK_KEY_ID) {
+		return false;
+	}
+
+	if (event->click != CLICK_LONG) {
+		return false;
+	}
+
+	if (IS_ENABLED(CONFIG_DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK_ON_BOOT_ONLY) &&
+	    (k_uptime_get() > ON_START_CLICK_UPTIME_MAX)) {
+		LOG_INF("Pairing data erase button pressed too late");
+		return false;
+	}
+
+	update_hid_subscription(false);
+	pairing_erase_pending = true;
+
+	if ((state == STATE_ACTIVE) && (sent_hid_report.packet_cnt == 0)) {
+		/* Finalize pairing data erase. */
+		periodic_work_fn(NULL);
+	} else if (state == STATE_ACTIVE) {
+		/* Make sure that work would not be triggered before Gazell transmission is done. */
+		(void)k_work_cancel_delayable(&periodic_work);
+	} else {
+		/* Pairing data will be erased on system address (or Host ID) get retry or during
+		 * module's initialization.
+		 */
+	}
+
+	return false;
+}
+
 static bool event_handler(const struct app_event_header *aeh)
 {
 	if (is_hid_report_event(aeh)) {
@@ -746,6 +810,10 @@ static bool event_handler(const struct app_event_header *aeh)
 
 	if (is_module_state_event(aeh)) {
 		return module_state_event_handler(cast_module_state_event(aeh));
+	}
+
+	if (IS_ENABLED(CONFIG_DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK) && is_click_event(aeh)) {
+		return click_event_handler(cast_click_event(aeh));
 	}
 
 	/* If event is unhandled, unsubscribe. */
@@ -757,3 +825,6 @@ static bool event_handler(const struct app_event_header *aeh)
 APP_EVENT_LISTENER(MODULE, event_handler);
 APP_EVENT_SUBSCRIBE(MODULE, hid_report_event);
 APP_EVENT_SUBSCRIBE(MODULE, module_state_event);
+#ifdef CONFIG_DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK
+APP_EVENT_SUBSCRIBE(MODULE, click_event);
+#endif /* CONFIG_DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK */

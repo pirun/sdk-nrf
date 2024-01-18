@@ -52,10 +52,40 @@ config DESKTOP_GZP_LEGACY_HID_REPORT_MAP
 	  design. This option must be enabled for compatibility with nRFready
 	  Desktop 2 Reference Design dongle.
 
+config DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK
+	bool "Enable Gazell pairing data erase on long button click"
+	help
+	  The pairing data erase is triggered by a long button press. Gazell
+	  pairing data is instantly removed.
+
+if DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK
+
+config DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK_KEY_ID
+	hex "Key ID of button used to trigger pairing data erase"
+	range 0x0000 0xffff
+	default 0xffff
+
+config DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK_ON_BOOT_ONLY
+	bool "Allow pairing data erase using button only right after boot"
+	help
+	  If the option is enabled, the pairing data erase on long button press
+	  can only be triggered right after boot.
+
+endif # DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK
+
+if !DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK
+
+config DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK_KEY_ID
+	hex
+	range 0x0000 0xffff
+	default 0xffff
+
+endif # !DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK
+
 module = DESKTOP_GZP
 module-str = Gazell
 source "subsys/logging/Kconfig.template.log_config"
 
-endif
+endif # DESKTOP_GZP_ENABLE
 
 endmenu
