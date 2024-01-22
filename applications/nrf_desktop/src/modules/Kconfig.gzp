@@ -45,12 +45,24 @@ config DESKTOP_GZP_SUBSCRIBER_PRIORITY
 
 config DESKTOP_GZP_LEGACY_HID_REPORT_MAP
 	bool "Translate HID reports to nRFready Desktop 2 HID report map"
+	imply GAZELL_PAIRING_USER_CONFIG_ENABLE
 	default y
 	help
 	  Translate HID reports from the default report map used by nRF Desktop
 	  to legacy HID report map that was used by nRFReady Desktop 2 reference
 	  design. This option must be enabled for compatibility with nRFready
 	  Desktop 2 Reference Design dongle.
+
+if DESKTOP_GZP_LEGACY_HID_REPORT_MAP
+
+config GAZELL_PAIRING_USER_CONFIG_FILE
+	default "gzp_config_legacy_dongle.h"
+	help
+	  The file aligns Gazell configuration (pairing address and secret key)
+	  with nRFReady Desktop 2 reference design. This file must be used for
+	  compatibility with nRFready Desktop 2 Reference Design dongle.
+
+endif # DESKTOP_GZP_LEGACY_HID_REPORT_MAP
 
 config DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK
 	bool "Enable Gazell pairing data erase on long button click"
