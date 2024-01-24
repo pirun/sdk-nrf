@@ -18,6 +18,16 @@ config CAF_BLE_ADV_PM_EVENTS
 	depends on CAF_PM_EVENTS
 	default y
 
+config CAF_BLE_ADV_MODULE_SUSPEND_EVENTS
+	bool "Module suspend/resume request events support"
+	depends on CAF_MODULE_SUSPEND_EVENTS
+	default y
+
+config CAF_BLE_ADV_SUSPEND_ON_READY
+	bool "Automatically suspend module right after initialization"
+	depends on CAF_BLE_ADV_MODULE_SUSPEND_EVENTS
+	default y
+
 config CAF_BLE_ADV_POWER_DOWN_ON_DISCONNECTION_REASON_0X15
 	bool "Force power down on disconnection with reason 0x15"
 	depends on CAF_BLE_ADV_PM_EVENTS
