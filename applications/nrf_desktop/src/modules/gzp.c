@@ -1,11 +1,13 @@
 /*
- * Copyright (c) 2019 - 2024 Nordic Semiconductor ASA
+ * Copyright (c) 2019 - 2020 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: LicenseRef-BSD-5-Clause-Nordic
  */
 
 #include <assert.h>
 #include <limits.h>
+
+#include <zephyr/bluetooth/bluetooth.h>
 
 #include <zephyr/kernel.h>
 #include <zephyr/types.h>
@@ -18,6 +20,7 @@
 
 #define MODULE gzp
 #include <caf/events/module_state_event.h>
+#include <caf/events/module_suspend_event.h>
 #include <caf/events/click_event.h>
 
 #include <zephyr/logging/log.h>
@@ -68,6 +71,8 @@ static uint8_t keyboard_data[REPORT_SIZE_KEYBOARD_KEYS + 1] = {REPORT_ID_KEYBOAR
 static uint8_t queued_report_id = REPORT_ID_COUNT;
 static bool keep_alive_needed;
 static bool pairing_erase_pending;
+static bool suspend_pending;
+static bool suspended = IS_ENABLED(CONFIG_DESKTOP_GZP_SUSPEND_ON_READY);
 
 static void periodic_work_fn(struct k_work *work);
 static void gzp_encrypted_sent_cb(bool success, void *context);
@@ -450,7 +455,7 @@ static void gzp_id_req_cb(enum gzp_id_req_res result, void *context)
 
 	__ASSERT_NO_MSG(state == STATE_GET_HOST_ID);
 
-	if (pairing_erase_pending) {
+	if (pairing_erase_pending || suspend_pending) {
 		(void)k_work_reschedule(&periodic_work, K_NO_WAIT);
 		return;
 	}
@@ -473,7 +478,7 @@ static void gzp_address_req_cb(bool result, void *context)
 
 	__ASSERT_NO_MSG(state == STATE_GET_SYSTEM_ADDRESS);
 
-	if (pairing_erase_pending) {
+	if (pairing_erase_pending || suspend_pending) {
 		(void)k_work_reschedule(&periodic_work, K_NO_WAIT);
 		return;
 	}
@@ -517,7 +522,7 @@ static void sent_cb(bool success)
 			queued_report_id = REPORT_ID_COUNT;
 		}
 
-		if (pairing_erase_pending) {
+		if (pairing_erase_pending || suspend_pending) {
 			(void)k_work_reschedule(&periodic_work, K_NO_WAIT);
 		}
 	}
@@ -573,6 +578,28 @@ static void keep_alive(void)
 	(void)k_work_reschedule(&periodic_work, K_MSEC(KEEP_ALIVE_TIMEOUT_MS));
 }
 
+static enum state gazell_get_pairing_module_state(void)
+{
+	enum state ret;
+	int8_t pairing_status = gzp_get_pairing_status();
+
+	if (pairing_status == -2) {
+		LOG_INF("Pairing database is empty");
+		ret = STATE_GET_SYSTEM_ADDRESS;
+	} else if (pairing_status == -1) {
+		LOG_INF("Has system address but no Host ID");
+		ret = STATE_GET_HOST_ID;
+	} else if (pairing_status >= 0) {
+		LOG_INF("Has system address and Host ID");
+		ret = STATE_ACTIVE;
+	} else {
+		LOG_ERR("gzp_get_pairing_status returned unhandled value: %" PRIi8, pairing_status);
+		ret = STATE_ERROR;
+	}
+
+	return ret;
+}
+
 static void gazell_pairing_erase(void)
 {
 	__ASSERT_NO_MSG(sent_hid_report.packet_cnt == 0);
@@ -586,6 +613,29 @@ static void gazell_pairing_erase(void)
 		LOG_ERR("Failed to erase Gazell pairing data");
 		state = STATE_ERROR;
 	}
+}
+
+static bool gazell_state_update(bool enable)
+{
+	if (enable) {
+		if (!gzll_glue_init()) {
+			LOG_ERR("gzll_glue_uninit failed");
+			return false;
+		}
+
+		if (!nrf_gzll_enable()) {
+			LOG_ERR("nrf_gzll_enable failed");
+			return false;
+		};
+	} else {
+		nrf_gzll_disable();
+		if (!gzll_glue_uninit()) {
+			LOG_ERR("gzll_glue_uninit failed");
+			return false;
+		}
+	}
+
+	return true;
 }
 
 static void periodic_work_fn(struct k_work *work)
@@ -602,6 +652,14 @@ static void periodic_work_fn(struct k_work *work)
 		if (state == STATE_ERROR) {
 			return;
 		}
+	}
+
+	if (suspend_pending) {
+		suspend_pending = false;
+		suspended = true;
+		gazell_state_update(false);
+		module_set_state(MODULE_STATE_SUSPENDED);
+		return;
 	}
 
 	if (state == STATE_ACTIVE) {
@@ -651,33 +709,21 @@ static bool gazell_initial_configuration(void)
 	return true;
 }
 
-static bool gazell_state_update(bool enable)
-{
-	bool success = true;
-
-	if (enable) {
-		success = nrf_gzll_enable();
-		if (!success) {
-			LOG_ERR("nrf_gzll_enable failed");
-		}
-	} else {
-		nrf_gzll_disable();
-	}
-
-	return success;
-}
-
 static int module_init(void)
 {
+	if (suspended || suspend_pending) {
+		return 0;
+	}
+
 	k_work_init_delayable(&periodic_work, periodic_work_fn);
 
 	if (!gazell_initial_configuration()) {
 		return -EIO;
 	}
 
-	if (pairing_erase_pending) {
-		periodic_work_fn(NULL);
-		return 0;
+	if (!nrf_gzll_enable()) {
+		LOG_ERR("nrf_gzll_enable failed");
+		return -EIO;
 	}
 
 	if (pairing_erase_pending) {
@@ -727,7 +773,7 @@ static bool hid_report_event_handler(const struct hid_report_event *event)
 		return false;
 	}
 
-	if ((state != STATE_ACTIVE) || pairing_erase_pending) {
+	if ((state != STATE_ACTIVE) || pairing_erase_pending || suspend_pending) {
 		/* Gazell is not active, report error. */
 		broadcast_hid_report_sent(report_id, true);
 		return false;
@@ -757,6 +803,9 @@ static bool module_state_event_handler(const struct module_state_event *event)
 			module_set_state(MODULE_STATE_ERROR);
 		} else {
 			module_set_state(MODULE_STATE_READY);
+			if (suspended) {
+				module_set_state(MODULE_STATE_SUSPENDED);
+			}
 		}
 	}
 
@@ -802,6 +851,74 @@ static bool click_event_handler(const struct click_event *event)
 	return false;
 }
 
+static bool handle_module_suspend_req_event(const struct module_suspend_req_event *event)
+{
+	if (event->module_id != MODULE_ID(gzp)) {
+		/* Not us. */
+		return false;
+	}
+
+	if (!suspended && !suspend_pending) {
+		update_hid_subscription(false);
+		suspend_pending = true;
+
+		if ((state == STATE_ACTIVE) && (sent_hid_report.packet_cnt == 0)) {
+			/* Finalize suspend. */
+			periodic_work_fn(NULL);
+		} else if (state == STATE_ACTIVE) {
+			/* Make sure that work would not be triggered before suspend is done. */
+			(void)k_work_cancel_delayable(&periodic_work);
+		} else {
+			/* Suspend will be finalized on system address (or Host ID) get retry or
+			 * during module's initialization.
+			 */
+		}
+	}
+
+	return false;
+}
+
+static bool handle_module_resume_req_event(const struct module_resume_req_event *event)
+{
+	if (event->module_id != MODULE_ID(gzp)) {
+		/* Not us. */
+		return false;
+	}
+
+	int err = 0;
+
+	if (suspend_pending) {
+		/* TODO: Improve. */
+		LOG_ERR("Cannot resume while suspending. Event ignored");
+		return false;
+	}
+
+	if (suspended) {
+		suspended = false;
+
+		if (state == STATE_DISABLED) {
+			err = module_init();
+		} else if ((state == STATE_GET_HOST_ID) || (state == STATE_GET_SYSTEM_ADDRESS)) {
+			gazell_state_update(true);
+			/* The work finalizes initialization. */
+			(void)k_work_reschedule(&periodic_work, K_NO_WAIT);
+		} else if (state == STATE_ACTIVE) {
+			gazell_state_update(true);
+			update_hid_subscription(true);
+			(void)k_work_reschedule(&periodic_work, K_MSEC(KEEP_ALIVE_TIMEOUT_MS));
+		}
+
+		if (err) {
+			LOG_ERR("Resume failed");
+			module_set_state(MODULE_STATE_ERROR);
+		} else {
+			module_set_state(MODULE_STATE_READY);
+		}
+	}
+
+	return false;
+}
+
 static bool event_handler(const struct app_event_header *aeh)
 {
 	if (is_hid_report_event(aeh)) {
@@ -812,8 +929,19 @@ static bool event_handler(const struct app_event_header *aeh)
 		return module_state_event_handler(cast_module_state_event(aeh));
 	}
 
-	if (IS_ENABLED(CONFIG_DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK) && is_click_event(aeh)) {
+	if (IS_ENABLED(CONFIG_DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK) &&
+	    is_click_event(aeh)) {
 		return click_event_handler(cast_click_event(aeh));
+	}
+
+	if (IS_ENABLED(CONFIG_DESKTOP_GZP_MODULE_SUSPEND_EVENTS) &&
+	    is_module_suspend_req_event(aeh)) {
+		return handle_module_suspend_req_event(cast_module_suspend_req_event(aeh));
+	}
+
+	if (IS_ENABLED(CONFIG_DESKTOP_GZP_MODULE_SUSPEND_EVENTS) &&
+	    is_module_resume_req_event(aeh)) {
+		return handle_module_resume_req_event(cast_module_resume_req_event(aeh));
 	}
 
 	/* If event is unhandled, unsubscribe. */
@@ -825,6 +953,10 @@ static bool event_handler(const struct app_event_header *aeh)
 APP_EVENT_LISTENER(MODULE, event_handler);
 APP_EVENT_SUBSCRIBE(MODULE, hid_report_event);
 APP_EVENT_SUBSCRIBE(MODULE, module_state_event);
+#ifdef CONFIG_DESKTOP_GZP_MODULE_SUSPEND_EVENTS
+APP_EVENT_SUBSCRIBE(MODULE, module_suspend_req_event);
+APP_EVENT_SUBSCRIBE(MODULE, module_resume_req_event);
+#endif /* CONFIG_DESKTOP_GZP_MODULE_SUSPEND_EVENTS */
 #ifdef CONFIG_DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK
 APP_EVENT_SUBSCRIBE(MODULE, click_event);
 #endif /* CONFIG_DESKTOP_GZP_PAIRING_DATA_ERASE_CLICK */
