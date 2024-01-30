@@ -9,13 +9,34 @@ menu "Gazell"
 config DESKTOP_GZP_ENABLE
 	bool "Enable Gazell module"
 	depends on DESKTOP_ROLE_HID_PERIPHERAL
-	depends on !DESKTOP_BT
 	select GAZELL
 	select GZLL
 	help
 	  Enables Gazell module.
 
 if DESKTOP_GZP_ENABLE
+
+choice GAZELL_SWI
+	default GAZELL_SWI1 if BT
+	help
+	  Update used software interrupt to avoid BLE interoperability issues.
+endchoice
+
+choice GAZELL_TIMER
+	default GAZELL_TIMER2 if BT
+	help
+	  Update used timer to avoid BLE interoperability issues.
+endchoice
+
+config DESKTOP_GZP_MODULE_SUSPEND_EVENTS
+	bool "Module suspend/resume request events support"
+	depends on CAF_MODULE_SUSPEND_EVENTS
+	default y
+
+config DESKTOP_GZP_SUSPEND_ON_READY
+	bool "Automatically suspend module right after initialization"
+	depends on DESKTOP_GZP_MODULE_SUSPEND_EVENTS
+	default y
 
 choice GAZELL_PAIRING_ROLE
 	default GAZELL_PAIRING_DEVICE if DESKTOP_ROLE_HID_PERIPHERAL
