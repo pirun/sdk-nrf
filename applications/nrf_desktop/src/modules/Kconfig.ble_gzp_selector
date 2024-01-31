@@ -1,0 +1,39 @@
+#
+# Copyright (c) 2024 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menuconfig DESKTOP_BLE_GZP_SELECTOR_ENABLE
+	bool "Module that controlls switching between BLE and Gazell using HW selector"
+	depends on CAF_BLE_ADV
+	depends on CAF_BLE_STATE
+	depends on DESKTOP_GZP_ENABLE
+	depends on DESKTOP_SELECTOR_HW_ENABLE
+	select CAF_MODULE_SUSPEND_EVENTS
+	help
+	  The module controls switching between Bluetooth LE and Gazell using
+	  a hardware selector.
+
+if DESKTOP_BLE_GZP_SELECTOR_ENABLE
+
+config DESKTOP_BLE_GZP_SELECTOR_ID
+	int "ID of HW selector used to control switching between Bluetooth LE and Gazell"
+	range 0 255
+	default 0
+
+config DESKTOP_BLE_GZP_SELECTOR_POS_BLE
+	int "Selector position for BLE"
+	range 0 255
+	default 0
+
+config DESKTOP_BLE_GZP_SELECTOR_POS_GZP
+	int "Selector position for Gazell"
+	range 0 255
+	default 0
+
+module = DESKTOP_BLE_GZP_SELECTOR
+module-str = BLE/Gazell selector
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # DESKTOP_BLE_GZP_SELECTOR_ENABLE
