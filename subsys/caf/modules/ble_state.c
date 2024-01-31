@@ -7,6 +7,7 @@
 #include <zephyr/types.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/sys/byteorder.h>
+#include <zephyr/settings/settings.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
@@ -20,6 +21,7 @@
 
 #define MODULE ble_state
 #include <caf/events/module_state_event.h>
+#include <caf/events/module_suspend_event.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(MODULE, CONFIG_CAF_BLE_STATE_LOG_LEVEL);
@@ -32,6 +34,9 @@ struct bond_find_data {
 };
 
 static struct bt_conn *active_conn[CONFIG_BT_MAX_CONN];
+static bool suspended;
+
+BUILD_ASSERT(!IS_ENABLED(CONFIG_BT_PERIPHERAL) || (ARRAY_SIZE(active_conn) == 1));
 
 
 static void bond_check_cb(const struct bt_bond_info *info, void *user_data)
@@ -324,24 +329,69 @@ static void bt_ready(int err)
 	}
 #endif /* CONFIG_CAF_BLE_USE_LLPM */
 
+	if (suspended) {
+		/* Settings must be reloaded after Bluetooth is suspended. */
+		if (settings_load_subtree("bt")) {
+			LOG_ERR("Bluetooth settings load failed");
+			module_set_state(MODULE_STATE_ERROR);
+			return;
+		}
+		suspended = false;
+	}
+
 	module_set_state(MODULE_STATE_READY);
 }
 
-static int ble_state_init(void)
+BT_CONN_CB_DEFINE(conn_callbacks) = {
+	.connected = connected,
+	.disconnected = disconnected,
+	.security_changed = security_changed,
+	.le_param_req = le_param_req,
+	.le_param_updated = le_param_updated,
+};
+
+static bool handle_module_suspend_req_event(const struct module_suspend_req_event *event)
 {
-	BUILD_ASSERT(!IS_ENABLED(CONFIG_BT_PERIPHERAL) ||
-		     (ARRAY_SIZE(active_conn) == 1));
+	if (event->module_id != MODULE_ID(ble_state)) {
+		/* Not us. */
+		return false;
+	}
 
-	static struct bt_conn_cb conn_callbacks = {
-		.connected = connected,
-		.disconnected = disconnected,
-		.security_changed = security_changed,
-		.le_param_req = le_param_req,
-		.le_param_updated = le_param_updated,
-	};
-	bt_conn_cb_register(&conn_callbacks);
+	if (!suspended) {
+		int err = bt_disable();
 
-	return bt_enable(bt_ready);
+		if (err) {
+			LOG_ERR("bt_disable failed (err: %d)", err);
+			module_set_state(MODULE_STATE_ERROR);
+		} else {
+			module_set_state(MODULE_STATE_SUSPENDED);
+		}
+
+		suspended = true;
+	}
+
+	return false;
+}
+
+static bool handle_module_resume_req_event(const struct module_resume_req_event *event)
+{
+	if (event->module_id != MODULE_ID(ble_state)) {
+		/* Not us. */
+		return false;
+	}
+
+	if (suspended) {
+		int err = bt_enable(bt_ready);
+
+		if (err) {
+			LOG_ERR("bt_enable failed (err: %d)", err);
+			module_set_state(MODULE_STATE_ERROR);
+		} else {
+			/* Will be submitted by bt_ready callback. */
+		}
+	}
+
+	return false;
 }
 
 static bool app_event_handler(const struct app_event_header *aeh)
@@ -352,12 +402,24 @@ static bool app_event_handler(const struct app_event_header *aeh)
 
 		if (check_state(event, MODULE_ID(main), MODULE_STATE_READY)) {
 			static bool initialized;
+			int err;
 
 			__ASSERT_NO_MSG(!initialized);
 			initialized = true;
 
-			if (ble_state_init()) {
-				LOG_ERR("Cannot initialize");
+			if (suspended) {
+				err = bt_disable();
+			} else {
+				err = bt_enable(bt_ready);
+			}
+
+			if (!err) {
+				/* Ready state will be reported by bt_ready callback. */
+				if (suspended) {
+					module_set_state(MODULE_STATE_SUSPENDED);
+				}
+			} else {
+				LOG_ERR("Cannot initialize (err: %d)", err);
 				module_set_state(MODULE_STATE_ERROR);
 			}
 		}
@@ -383,11 +445,26 @@ static bool app_event_handler(const struct app_event_header *aeh)
 		return false;
 	}
 
+	if (IS_ENABLED(CONFIG_CAF_BLE_STATE_MODULE_SUSPEND_EVENTS) &&
+	    is_module_suspend_req_event(aeh)) {
+		return handle_module_suspend_req_event(cast_module_suspend_req_event(aeh));
+	}
+
+	if (IS_ENABLED(CONFIG_CAF_BLE_STATE_MODULE_SUSPEND_EVENTS) &&
+	    is_module_resume_req_event(aeh)) {
+		return handle_module_resume_req_event(cast_module_resume_req_event(aeh));
+	}
+
 	/* If event is unhandled, unsubscribe. */
 	__ASSERT_NO_MSG(false);
 
 	return false;
 }
+
 APP_EVENT_LISTENER(MODULE, app_event_handler);
 APP_EVENT_SUBSCRIBE(MODULE, module_state_event);
 APP_EVENT_SUBSCRIBE_FINAL(MODULE, ble_peer_event);
+#if CONFIG_CAF_BLE_STATE_MODULE_SUSPEND_EVENTS
+APP_EVENT_SUBSCRIBE(MODULE, module_suspend_req_event);
+APP_EVENT_SUBSCRIBE(MODULE, module_resume_req_event);
+#endif /* CONFIG_CAF_BLE_STATE_MODULE_SUSPEND_EVENTS */
