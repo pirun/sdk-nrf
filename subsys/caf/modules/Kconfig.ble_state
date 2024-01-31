@@ -17,6 +17,24 @@ menuconfig CAF_BLE_STATE
 
 if CAF_BLE_STATE
 
+config CAF_BLE_STATE_MODULE_SUSPEND_EVENTS
+	bool "Module suspend/resume request events support"
+	depends on CAF_MODULE_SUSPEND_EVENTS
+	default y
+
+config CAF_BLE_STATE_FREE_HW_RESOURCES_ON_SUSPEND
+	bool "Free allocated HW resources on suspend to allow radio reuse"
+	depends on CAF_BLE_STATE_MODULE_SUSPEND_EVENTS
+	depends on BT_LL_SOFTDEVICE
+	select BT_UNINIT_MPSL_ON_DISABLE
+	select MPSL_DYNAMIC_INTERRUPTS
+	select DYNAMIC_DIRECT_INTERRUPTS
+	select DYNAMIC_INTERRUPTS
+	help
+	  Free allocated hardware resources when module is suspended to allow
+	  reusing radio e.g. to communicate over another wireless protocol.
+	  The resources are freed on bt_disable call.
+
 config CAF_BLE_STATE_SECURITY_REQ
 	bool "Request connection encryption (security level 2)"
 	help
