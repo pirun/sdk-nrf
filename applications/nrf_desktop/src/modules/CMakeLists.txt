@@ -4,6 +4,9 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
+target_sources_ifdef(CONFIG_DESKTOP_BLE_GZP_SELECTOR_ENABLE
+		     app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ble_gzp_selector.c)
+
 target_sources_ifdef(CONFIG_DESKTOP_BLE_ADV_CTRL_ENABLE
 		     app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ble_adv_ctrl.c)
 
