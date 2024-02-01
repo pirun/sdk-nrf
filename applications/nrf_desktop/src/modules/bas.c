@@ -75,10 +75,10 @@ static bool app_event_handler(const struct app_event_header *aeh)
 		if (check_state(event, MODULE_ID(ble_state), MODULE_STATE_READY)) {
 			static bool initialized;
 
-			__ASSERT_NO_MSG(!initialized);
-			initialized = true;
-
-			module_set_state(MODULE_STATE_READY);
+			if (!initialized) {
+				initialized = true;
+				module_set_state(MODULE_STATE_READY);
+			}
 		}
 		return false;
 	}
