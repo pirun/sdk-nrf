@@ -267,6 +267,8 @@ void ecdh_work_handler(struct k_work *work)
 }
 #else
 struct k_poll_signal ecdh_signal;
+struct k_poll_signal ecdh_turnoff;
+static struct k_sem ecdh_turnoff_sem;
 
 static struct k_thread ecdh_thread_data;
 static K_KERNEL_STACK_DEFINE(ecdh_thread_stack, CONFIG_BT_CTLR_ECDH_STACK_SIZE);
@@ -278,20 +280,38 @@ static void work_submit(void)
 
 static void ecdh_thread(void *p1, void *p2, void *p3)
 {
-	struct k_poll_event events[1] = {
+	struct k_poll_event events[2] = {
 		K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SIGNAL,
 					 K_POLL_MODE_NOTIFY_ONLY,
 					 &ecdh_signal),
+		K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SIGNAL,
+					 K_POLL_MODE_NOTIFY_ONLY,
+					 &ecdh_turnoff),
 	};
 
 	while (true) {
-		k_poll(events, 1, K_FOREVER);
+		unsigned int signaled;
+		int result;
 
-		k_poll_signal_reset(&ecdh_signal);
-		events[0].state = K_POLL_STATE_NOT_READY;
+		k_poll(events, 2, K_FOREVER);
 
-		ecdh_cmd_process();
+		k_poll_signal_check(&ecdh_signal, &signaled, &result);
+		if (signaled) {
+			k_poll_signal_reset(&ecdh_signal);
+			events[0].state = K_POLL_STATE_NOT_READY;
+
+			ecdh_cmd_process();
+		}
+
+		k_poll_signal_check(&ecdh_turnoff, &signaled, &result);
+		if (signaled) {
+			k_poll_signal_reset(&ecdh_turnoff);
+			events[1].state = K_POLL_STATE_NOT_READY;
+			break;
+		}
 	}
+
+	k_sem_give(&ecdh_turnoff_sem);
 }
 #endif /* !defined(CONFIG_BT_CTLR_ECDH_IN_MPSL_WORK) */
 
@@ -299,6 +319,8 @@ void hci_ecdh_init(void)
 {
 #if !defined(CONFIG_BT_CTLR_ECDH_IN_MPSL_WORK)
 	k_poll_signal_init(&ecdh_signal);
+	k_poll_signal_init(&ecdh_turnoff);
+	k_sem_init(&ecdh_turnoff_sem, 0, 1);
 
 	k_thread_create(&ecdh_thread_data, ecdh_thread_stack,
 			K_KERNEL_STACK_SIZEOF(ecdh_thread_stack), ecdh_thread,
@@ -312,7 +334,8 @@ void hci_ecdh_init(void)
 void hci_ecdh_uninit(void)
 {
 #if !defined(CONFIG_BT_CTLR_ECDH_IN_MPSL_WORK)
-	k_thread_abort(&ecdh_thread_data);
+	k_poll_signal_raise(&ecdh_turnoff, 0);
+	k_sem_take(&ecdh_turnoff_sem, K_FOREVER);
 #endif /* !defined(CONFIG_BT_CTLR_ECDH_IN_MPSL_WORK) */
 }
 
