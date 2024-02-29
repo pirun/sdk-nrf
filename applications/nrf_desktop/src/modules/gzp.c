@@ -7,8 +7,6 @@
 #include <assert.h>
 #include <limits.h>
 
-#include <zephyr/bluetooth/bluetooth.h>
-
 #include <zephyr/kernel.h>
 #include <zephyr/types.h>
 #include <string.h>
@@ -456,6 +454,10 @@ static void gzp_id_req_cb(enum gzp_id_req_res result, void *context)
 	__ASSERT_NO_MSG(state == STATE_GET_HOST_ID);
 
 	if (pairing_erase_pending || suspend_pending) {
+		if (result == GZP_ID_RESP_GRANTED) {
+			LOG_INF("Host ID request was successful");
+			state = STATE_ACTIVE;
+		}
 		(void)k_work_reschedule(&periodic_work, K_NO_WAIT);
 		return;
 	}
@@ -479,6 +481,10 @@ static void gzp_address_req_cb(bool result, void *context)
 	__ASSERT_NO_MSG(state == STATE_GET_SYSTEM_ADDRESS);
 
 	if (pairing_erase_pending || suspend_pending) {
+		if (result) {
+			LOG_INF("Address request was successful");
+			state = STATE_GET_HOST_ID;
+		}
 		(void)k_work_reschedule(&periodic_work, K_NO_WAIT);
 		return;
 	}
@@ -659,6 +665,10 @@ static void periodic_work_fn(struct k_work *work)
 		suspended = true;
 		gazell_state_update(false);
 		module_set_state(MODULE_STATE_SUSPENDED);
+	}
+
+	/* Do not perform further actions if suspended. */
+	if (suspended) {
 		return;
 	}
 
@@ -773,7 +783,7 @@ static bool hid_report_event_handler(const struct hid_report_event *event)
 		return false;
 	}
 
-	if ((state != STATE_ACTIVE) || pairing_erase_pending || suspend_pending) {
+	if ((state != STATE_ACTIVE) || pairing_erase_pending || suspend_pending || suspended) {
 		/* Gazell is not active, report error. */
 		broadcast_hid_report_sent(report_id, true);
 		return false;
@@ -835,6 +845,12 @@ static bool click_event_handler(const struct click_event *event)
 
 	update_hid_subscription(false);
 	pairing_erase_pending = true;
+
+	if (suspended && (state != STATE_DISABLED)) {
+		/* Finalize pairing data erase. */
+		periodic_work_fn(NULL);
+		return false;
+	}
 
 	if ((state == STATE_ACTIVE) && (sent_hid_report.packet_cnt == 0)) {
 		/* Finalize pairing data erase. */
