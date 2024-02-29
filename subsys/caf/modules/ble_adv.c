@@ -1211,6 +1211,8 @@ static bool handle_module_resume_req_event(const struct module_resume_req_event 
 
 	switch (state) {
 	case STATE_SUSPENDED:
+		req_new_adv_session = true;
+		req_fast_adv = true;
 		update_state(STATE_DELAYED_ACTIVE);
 		break;
 
