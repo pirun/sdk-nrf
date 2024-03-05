@@ -634,7 +634,24 @@ static bool gazell_state_update(bool enable)
 			return false;
 		};
 	} else {
+		static const size_t wait_cnt_max = 500;
+		size_t wait_cnt = 0;
+
 		nrf_gzll_disable();
+
+		while (nrf_gzll_is_enabled()) {
+			if (wait_cnt >= wait_cnt_max) {
+				LOG_ERR("nrf_gzll_is_enabled still returns true on disable");
+				break;
+			}
+			wait_cnt++;
+
+			/* Wait for 2 timeslot periods. */
+			size_t wait_time_ms = MAX(((2 * NRF_GZLLDE_RXPERIOD_DIV_2) / 1000), 1);
+
+			k_sleep(K_MSEC(wait_time_ms));
+		}
+
 		if (!gzll_glue_uninit()) {
 			LOG_ERR("gzll_glue_uninit failed");
 			return false;
