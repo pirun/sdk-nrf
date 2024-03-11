@@ -524,7 +524,8 @@ static void broadcast_module_state(enum state prev_state, enum state new_state)
 	} else if (!is_module_state_suspended(prev_state) &&
 		   is_module_state_suspended(new_state)) {
 		submit_suspended = true;
-	} else {
+	} else if (!is_module_state_suspended(prev_state) &&
+		   !is_module_state_suspended(new_state)) {
 		if (is_module_state_off(prev_state) && !is_module_state_off(new_state)) {
 			submit_ready = true;
 		}
