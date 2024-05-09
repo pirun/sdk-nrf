@@ -62,3 +62,5 @@ endif()
 if(CONFIG_DESKTOP_CONFIG_CHANNEL_ENABLE)
   zephyr_linker_sources(SECTIONS nrf_desktop.ld)
 endif()
+
+zephyr_compile_definitions_ifdef(CONFIG_NFCT_PINS_AS_GPIOS NRF_CONFIG_NFCT_PINS_AS_GPIOS)
