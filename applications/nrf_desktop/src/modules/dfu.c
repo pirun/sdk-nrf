@@ -17,6 +17,7 @@
 #include "dfu_lock.h"
 #include <caf/events/ble_common_event.h>
 #include <caf/events/power_manager_event.h>
+#include <caf/events/module_suspend_event.h>
 
 #define MODULE dfu
 #include <caf/events/module_state_event.h>
@@ -1035,7 +1036,34 @@ static bool app_event_handler(const struct app_event_header *aeh)
 			}
 
 			k_work_reschedule(&background_erase, K_NO_WAIT);
+		} else if (IS_ENABLED(CONFIG_CAF_MODULE_SUSPEND_EVENTS) &&
+			   IS_ENABLED(CONFIG_DESKTOP_GZP_ENABLE) &&
+			   check_state(event, MODULE_ID(gzp), MODULE_STATE_SUSPENDED)) {
+			/* DFU lock functionality was not yet integrated with Gazell. */
+			__ASSERT_NO_MSG(!IS_ENABLED(CONFIG_DESKTOP_DFU_LOCK));
+
+			/* Ensure gzp module is suspended right after initialization. */
+			__ASSERT_NO_MSG(IS_ENABLED(CONFIG_DESKTOP_GZP_SUSPEND_ON_READY));
+
+			LOG_INF("Gazell suspended, resume background erase");
+			if (!is_flash_area_clean) {
+				(void)k_work_reschedule(&background_erase, K_NO_WAIT);
+			}
 		}
+
+		return false;
+	}
+
+	if (IS_ENABLED(CONFIG_CAF_MODULE_SUSPEND_EVENTS) &&
+	    IS_ENABLED(CONFIG_DESKTOP_GZP_ENABLE) &&
+	    is_module_resume_req_event(aeh)) {
+		const struct module_resume_req_event *event = cast_module_resume_req_event(aeh);
+
+		if (event->module_id == MODULE_ID(gzp)) {
+			LOG_INF("Gazell resume requested, suspend background erase");
+			(void)k_work_cancel_delayable(&background_erase);
+		}
+
 		return false;
 	}
 
@@ -1049,6 +1077,9 @@ APP_EVENT_LISTENER(MODULE, app_event_handler);
 APP_EVENT_SUBSCRIBE(MODULE, hid_report_event);
 APP_EVENT_SUBSCRIBE_EARLY(MODULE, config_event);
 APP_EVENT_SUBSCRIBE(MODULE, module_state_event);
+#if defined(CONFIG_CAF_MODULE_SUSPEND_EVENTS) && defined(CONFIG_DESKTOP_GZP_ENABLE)
+APP_EVENT_SUBSCRIBE_EARLY(MODULE, module_resume_req_event);
+#endif /* defined(CONFIG_CAF_MODULE_SUSPEND_EVENTS) && defined(CONFIG_DESKTOP_GZP_ENABLE) */
 #ifdef CONFIG_CAF_BLE_COMMON_EVENTS
 APP_EVENT_SUBSCRIBE(MODULE, ble_peer_event);
 #endif /* CONFIG_CAF_BLE_COMMON_EVENTS */
