@@ -37,6 +37,12 @@ extern "C" {
 bool gzll_glue_init(void);
 
 /**
+ * @brief Gazell Dump channel table.
+ *
+ */
+void nrf_gzll_dump_channels(void);
+
+/**
  * @}
  */
 
