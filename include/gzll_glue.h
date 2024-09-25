@@ -37,6 +37,20 @@ extern "C" {
 bool gzll_glue_init(void);
 
 /**
+ * @brief Gazell Link Layer glue uninitialization.
+ *
+ * @retval true  if uninitialization is successful.
+ * @retval false if uninitialization is unsuccessful.
+ */
+bool gzll_glue_uninit(void);
+
+/**
+ * @brief Gazell Dump channel table.
+ *
+ */
+void nrf_gzll_dump_channels(void);
+
+/**
  * @}
  */
 

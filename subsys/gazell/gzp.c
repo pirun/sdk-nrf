@@ -39,21 +39,15 @@ static const uint8_t gzp_secret_key[16] = GZP_SECRET_KEY;
  */
 static enum gzp_key_select gzp_key_select;
 
-#endif
+static uint8_t gzp_session_token[GZP_SESSION_TOKEN_LENGTH];
+static uint8_t gzp_dyn_key[GZP_DYN_KEY_LENGTH];
+static const struct device *crypto_dev = DEVICE_DT_GET_ONE(nordic_nrf_ecb);
+
+#endif /* CONFIG_GAZELL_PAIRING_CRYPT */
 
 #if defined(CONFIG_GAZELL_PAIRING_CRYPT) || defined(CONFIG_GAZELL_PAIRING_HOST)
 static const struct device *entropy_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_entropy));
-#endif
-
-#ifdef CONFIG_GAZELL_PAIRING_CRYPT
-static const struct device *crypto_dev = DEVICE_DT_GET_ONE(nordic_nrf_ecb);
-#endif
-
-#ifdef CONFIG_GAZELL_PAIRING_CRYPT
-static uint8_t gzp_session_token[GZP_SESSION_TOKEN_LENGTH];
-static uint8_t gzp_dyn_key[GZP_DYN_KEY_LENGTH];
-#endif
-
+#endif /* CONFIG_GAZELL_PAIRING_CRYPT || CONFIG_GAZELL_PAIRING_HOST */
 
 void gzp_init_internal(void)
 {
@@ -63,7 +57,7 @@ void gzp_init_internal(void)
 
 #ifdef CONFIG_GAZELL_PAIRING_CRYPT
 	__ASSERT(device_is_ready(crypto_dev), "Crypto device not ready");
-#endif
+#endif /* CONFIG_GAZELL_PAIRING_CRYPT */
 }
 
 bool gzp_update_radio_params(const uint8_t *system_address)
