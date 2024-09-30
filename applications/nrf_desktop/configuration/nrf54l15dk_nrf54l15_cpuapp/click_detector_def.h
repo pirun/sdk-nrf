@@ -18,7 +18,11 @@ const struct {} click_detector_def_include_once;
 static const struct click_detector_config click_detector_config[] = {
 #if CONFIG_DESKTOP_BLE_PEER_CONTROL
 	{
-		.key_id = CONFIG_DESKTOP_BLE_PEER_CONTROL_BUTTON,
+		.key_id = 0x0000,
+		.consume_button_event = false,
+	},
+	{
+		.key_id = 0x0001,
 		.consume_button_event = false,
 	},
 #endif /* CONFIG_DESKTOP_BLE_PEER_CONTROL */
