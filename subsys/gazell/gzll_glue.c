@@ -116,6 +116,7 @@ uint32_t nrf_gzll_dppi_chen_msk_2;
 #endif
 
 static bool initial_setup_done;
+static bool m_turn_off_constant = true;
 
 #if !defined(CONFIG_NRFX_DPPI)
 /** Use fixed DPPI channels and groups since nrf-dppic-global driver is not ready yet. */
@@ -279,6 +280,9 @@ void nrf_gzll_delay_us(uint32_t usec_to_wait)
 void nrf_gzll_request_xosc(void)
 {
 	z_nrf_clock_bt_ctlr_hf_request();
+#if defined(CONFIG_SOC_SERIES_NRF54LX)
+	NRF_POWER->TASKS_CONSTLAT = 1;
+#endif
 
 	/* Wait 1.5ms with 9% tolerance.
 	 * 1500 * 1.09 = 1635
@@ -289,6 +293,11 @@ void nrf_gzll_request_xosc(void)
 void nrf_gzll_release_xosc(void)
 {
 	z_nrf_clock_bt_ctlr_hf_release();
+#if defined(CONFIG_SOC_SERIES_NRF54LX)
+	if (m_turn_off_constant) {
+		NRF_POWER->TASKS_LOWPWR = 1;
+	}
+#endif
 }
 
 #define GAZELL_CH_DEBUG
