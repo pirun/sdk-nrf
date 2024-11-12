@@ -15,6 +15,25 @@
 
 LOG_MODULE_REGISTER(app);
 
+
+#include <zephyr/bluetooth/bluetooth.h>
+static const struct bt_data ad[] = {
+	BT_DATA_BYTES(BT_DATA_FLAGS, BT_LE_AD_NO_BREDR),
+	BT_DATA_BYTES(BT_DATA_UUID16_ALL, 0xaa, 0xfe),
+	BT_DATA_BYTES(BT_DATA_SVC_DATA16,
+		      0xaa, 0xfe, /* Eddystone UUID */
+		      0x10, /* Eddystone-URL frame type */
+		      0x00, /* Calibrated Tx power at 0m */
+		      0x00, /* URL Scheme Prefix http://www. */
+		      'z', 'e', 'p', 'h', 'y', 'r',
+		      'p', 'r', 'o', 'j', 'e', 'c', 't',
+		      0x08) /* .org */
+};
+#define BT_LE_ADV_X BT_LE_ADV_PARAM(BT_LE_ADV_OPT_USE_IDENTITY, \
+						 20, \
+						 30, \
+						 NULL)
+
 /* Pipes 0 and 1 are reserved for GZP pairing and data. See gzp.h. */
 #define UNENCRYPTED_DATA_PIPE     2
 
@@ -57,6 +76,13 @@ int main(void)
 	}
 
 	settings_subsys_init();
+
+	/* enable and disable BT causes reboot */
+	bt_enable(NULL);
+	bt_le_adv_start(BT_LE_ADV_X, ad, ARRAY_SIZE(ad), NULL, NULL);
+	k_msleep(500);
+	bt_disable();
+	/* enable and disable BT causes reboot */
 
 	/* Initialize Gazell Link Layer glue */
 	result_value = gzll_glue_init();
