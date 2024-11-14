@@ -30,6 +30,9 @@ LOG_MODULE_REGISTER(MODULE, CONFIG_CAF_POWER_MANAGER_LOG_LEVEL);
 #include <caf/events/power_manager_event.h>
 #include <caf/events/keep_alive_event.h>
 #include <caf/events/force_power_down_event.h>
+#ifdef CONFIG_SOC_NRF54L15_CPUAPP
+#include <hal/nrf_memconf.h>
+#endif
 
 #define SYSTEM_OFF_TIMEOUT            K_MSEC(5)
 #define POWER_DOWN_ERROR_TIMEOUT      K_SECONDS(CONFIG_CAF_POWER_MANAGER_ERROR_TIMEOUT)
@@ -157,6 +160,14 @@ static void system_off_post_action(void)
 									.min_residency_us = 0,
 									.exit_latency_us = 0 });
 #elif CONFIG_POWEROFF
+		uint32_t ram_sections = 8;
+
+		/* Turn off ram retention to get better power consumption.
+		 * User should enable the block retention if needed.
+		 */
+		nrf_memconf_ramblock_ret_mask_enable_set(NRF_MEMCONF, 0, BIT_MASK(ram_sections), false);
+		nrf_memconf_ramblock_ret2_mask_enable_set(NRF_MEMCONF, 0, BIT_MASK(ram_sections), false);
+
 		sys_poweroff();
 #endif
 }
