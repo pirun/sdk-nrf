@@ -32,6 +32,9 @@ config DESKTOP_BLE_GZP_SELECTOR_POS_GZP
 	range 0 255
 	default 0
 
+config DESKTOP_BLE_GZP_SELECTOR_REBOOT
+	bool "Reboot when switching between BLE and Gazell"
+
 module = DESKTOP_BLE_GZP_SELECTOR
 module-str = BLE/Gazell selector
 source "subsys/logging/Kconfig.template.log_config"
