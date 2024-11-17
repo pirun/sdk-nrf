@@ -27,7 +27,7 @@ enum protocol {
 };
 
 static enum protocol selected_protocol = PROTOCOL_COUNT;
-
+static bool is_selected = false;
 
 static void suspend_req(const void *module_id)
 {
@@ -75,7 +75,6 @@ static void update_radio_protocol(void)
 		if (ble_adv_state != MODULE_STATE_SUSPENDED) {
 			suspend_req(MODULE_ID(ble_adv));
 		} else if (ble_state_state != MODULE_STATE_SUSPENDED) {
-			k_msleep(50);
 			suspend_req(MODULE_ID(ble_state));
 		} else if (gzp_state != MODULE_STATE_READY) {
 			resume_req(MODULE_ID(gzp));
@@ -118,6 +117,10 @@ static bool handle_module_state_event(const struct module_state_event *event)
 
 static bool handle_selector_event(const struct selector_event *event)
 {
+	if (IS_ENABLED(CONFIG_DESKTOP_BLE_GZP_SELECTOR_REBOOT) && is_selected) {
+		sys_reboot(SYS_REBOOT_WARM);
+	}
+
 	if (event->selector_id != CONFIG_DESKTOP_BLE_GZP_SELECTOR_ID) {
 		return false;
 	}
@@ -125,6 +128,7 @@ static bool handle_selector_event(const struct selector_event *event)
 	if (event->position == CONFIG_DESKTOP_BLE_GZP_SELECTOR_POS_BLE) {
 		selected_protocol = PROTOCOL_BLE;
 	} else if (event->position == CONFIG_DESKTOP_BLE_GZP_SELECTOR_POS_GZP) {
+		is_selected = true;
 		selected_protocol = PROTOCOL_GZP;
 	} else {
 		LOG_WRN("Unhandled selector position");
