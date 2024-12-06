@@ -233,6 +233,14 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
       set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_SIGNATURE_TYPE_ED25519 y)
       set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_USES_SHA512 y)
 
+      # We are sure that ED25519 signature on MCUboot does not need these
+      set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_CIPHER_DRIVER n)
+      set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_AEAD_DRIVER n)
+      set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_MAC_DRIVER n)
+      set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_KEY_AGREEMENT_DRIVER n)
+      set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_PAKE_DRIVER n)
+      set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_KEY_DERIVATION_DRIVER n)
+
       if(SB_CONFIG_MCUBOOT_SIGNATURE_USING_KMU)
         set_config_bool(mcuboot CONFIG_BOOT_SIGNATURE_USING_KMU y)
       else()
@@ -246,8 +254,14 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
         set_config_bool(mcuboot CONFIG_BOOT_SIGNATURE_TYPE_PURE n)
         set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_SIGNATURE_TYPE_PURE n)
       endif()
-    else()
-      set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_USES_SHA512 n)
+      # MCUboot uses hash function to identify key internally when KMU is disabled.
+      if(SB_CONFIG_MCUBOOT_SIGNATURE_USING_KMU AND SB_CONFIG_BOOT_SIGNATURE_TYPE_PURE)
+        set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_HASH_DRIVER n)
+        set_config_bool(mcuboot CONFIG_BOOT_IMG_HASH_ALG_SHA512 n)
+      else()
+        set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_HASH_DRIVER y)
+        set_config_bool(mcuboot CONFIG_BOOT_IMG_HASH_ALG_SHA512 y)
+      endif()
     endif()
 
     # A v1 board doesn't define board qualifiers, thus below test will just test the pure board
