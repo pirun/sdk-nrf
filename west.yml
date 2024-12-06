@@ -132,7 +132,8 @@ manifest:
           compare-by-default: true
     - name: mcuboot
       repo-path: sdk-mcuboot
-      revision: v2.1.0-ncs2
+      remote: pirun
+      revision: 642e679402ccb37961c17b198e3c5451c3a2e09a
       path: bootloader/mcuboot
     - name: qcbor
       url: https://github.com/laurencelundblade/QCBOR
@@ -295,6 +296,11 @@ manifest:
       revision: d5fad6bd094899101a4e5fd53af7298160ced6ab
       groups:
         - benchmark
+    - name: delta_dfu
+      repo-path: delta_dfu
+      remote: pirun
+      path: delta_dfu
+      revision: fce60b2ed3866a6de27ed4d3b0bf86d1956421a7
 
   # West-related configuration for the nrf repository.
   self:
