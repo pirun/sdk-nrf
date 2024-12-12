@@ -133,7 +133,8 @@ manifest:
           compare-by-default: true
     - name: mcuboot
       repo-path: sdk-mcuboot
-      revision: v2.1.0-ncs3-rc1
+      remote: pirun
+      revision: bebd2267b51ba02fcfa7f0bffe49406c38565b81
       path: bootloader/mcuboot
     - name: qcbor
       url: https://github.com/laurencelundblade/QCBOR
@@ -150,7 +151,7 @@ manifest:
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
-      repo-path: sdk-zephyr
+      remote: pirun
       revision: 6e96b50a12179aac4ddb734a6dae152dbd4fe018
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
@@ -294,6 +295,11 @@ manifest:
       revision: d5fad6bd094899101a4e5fd53af7298160ced6ab
       groups:
         - benchmark
+    - name: delta_dfu
+      repo-path: delta_dfu
+      remote: pirun
+      path: delta_dfu
+      revision: ee61ee241318d0ac8cc385cfb1b654605a5c9056
 
   # West-related configuration for the nrf repository.
   self:
