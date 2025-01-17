@@ -39,6 +39,8 @@ manifest:
       url-base: https://github.com/boschsensortec
     - name: eembc
       url-base: https://github.com/eembc
+    - name: pirun
+      url-base: https://github.com/pirun
 
   # If not otherwise specified, the projects below should be obtained
   # from the ncs remote.
@@ -69,7 +71,8 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
       repo-path: sdk-zephyr
-      revision: v3.7.99-ncs2
+      remote: pirun
+      revision: bacd2efd313d4a18aaf2c909bc3091baacdf1aa8
       import:
         # In addition to the zephyr repository itself, NCS also
         # imports the contents of zephyr/west.yml at the above
@@ -147,7 +150,8 @@ manifest:
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
-      revision: v2.9.0
+      remote: pirun
+      revision: b9bb98e972e51b8891039d8c53e24b2b2e746de7
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tf-m/trusted-firmware-m
