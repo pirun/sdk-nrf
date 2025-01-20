@@ -641,6 +641,7 @@ psa_status_t convert_from_psa_attributes(const psa_key_attributes_t *key_attr,
 	break;
 
 	case PSA_ALG_ECDSA(PSA_ALG_ANY_HASH):
+	case PSA_ALG_ECDSA(PSA_ALG_SHA_256):
 		if (PSA_KEY_TYPE_ECC_GET_FAMILY(psa_get_key_type(key_attr)) !=
 		    PSA_ECC_FAMILY_SECP_R1) {
 			return PSA_ERROR_NOT_SUPPORTED;
