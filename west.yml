@@ -152,7 +152,7 @@ manifest:
       repo-path: sdk-nrfxlib
       path: nrfxlib
       remote: pirun
-      revision: b9bb98e972e51b8891039d8c53e24b2b2e746de7
+      revision: 5ac305c9988849e4f8faa56fcda7cc83d019d2a4
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tf-m/trusted-firmware-m
