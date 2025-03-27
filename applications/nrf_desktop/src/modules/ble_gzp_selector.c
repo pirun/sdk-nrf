@@ -10,6 +10,7 @@
 #include <caf/events/module_state_event.h>
 #include <caf/events/module_suspend_event.h>
 #include "selector_event.h"
+#include "retained.h"
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(MODULE, CONFIG_DESKTOP_BLE_GZP_SELECTOR_LOG_LEVEL);
@@ -118,6 +119,7 @@ static bool handle_module_state_event(const struct module_state_event *event)
 static bool handle_selector_event(const struct selector_event *event)
 {
 	if (IS_ENABLED(CONFIG_DESKTOP_BLE_GZP_SELECTOR_REBOOT) && is_selected) {
+		retained_update();
 		sys_reboot(SYS_REBOOT_WARM);
 	}
 
@@ -125,6 +127,7 @@ static bool handle_selector_event(const struct selector_event *event)
 		return false;
 	}
 
+	retained.switch_count += 1;
 	if (event->position == CONFIG_DESKTOP_BLE_GZP_SELECTOR_POS_BLE) {
 		selected_protocol = PROTOCOL_BLE;
 	} else if (event->position == CONFIG_DESKTOP_BLE_GZP_SELECTOR_POS_GZP) {

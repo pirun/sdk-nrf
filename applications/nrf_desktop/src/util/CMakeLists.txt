@@ -34,3 +34,7 @@ if(CONFIG_DESKTOP_BLE_QOS_ENABLE)
   zephyr_link_libraries(${CMAKE_CURRENT_SOURCE_DIR}/chmap_filter/lib/${GCC_M_CPU}/${float_dir}/libchmapfilt.a)
   target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/chmap_filter/include)
 endif()
+
+if(CONFIG_DESKTOP_BLE_GZP_SELECTOR_REBOOT)
+  target_sources(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/retained.c)
+endif()
