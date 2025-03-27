@@ -34,6 +34,7 @@ config DESKTOP_BLE_GZP_SELECTOR_POS_GZP
 
 config DESKTOP_BLE_GZP_SELECTOR_REBOOT
 	bool "Reboot when switching between BLE and Gazell"
+	select RETAINED_MEM
 
 module = DESKTOP_BLE_GZP_SELECTOR
 module-str = BLE/Gazell selector

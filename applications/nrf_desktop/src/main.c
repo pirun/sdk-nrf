@@ -10,11 +10,18 @@
 #include <caf/events/module_state_event.h>
 
 #include <zephyr/logging/log.h>
+#include "retained.h"
 LOG_MODULE_REGISTER(MODULE);
 
 
 int main(void)
 {
+#if defined(CONFIG_DESKTOP_BLE_GZP_SELECTOR_REBOOT)
+	retained_validate();
+	retained.boots += 1;
+	retained_update();
+#endif
+
 	if (app_event_manager_init()) {
 		LOG_ERR("Application Event Manager not initialized");
 	} else {
