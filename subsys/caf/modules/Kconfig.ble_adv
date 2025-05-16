@@ -49,6 +49,7 @@ config CAF_BLE_ADV_DIRECT_ADV
 
 config CAF_BLE_ADV_FAST_ADV
 	bool "Enable period of fast advertising"
+	default y
 
 config CAF_BLE_ADV_SLOW_INT_MIN
 	hex "Minimum Advertising Interval during slow advertising (N * 0.625 milliseconds)"
@@ -70,6 +71,13 @@ config CAF_BLE_ADV_SLOW_INT_MAX
 	  Maximum Advertising Interval should not be the same value (as stated
 	  in Bluetooth Core Spec 5.2, section 7.8.5)
 
+config CAF_BLE_ADV_SLOW_TIMEOUT
+	int "Time of initial slow advertising [ms]"
+	range 2000 2000
+	default 2000
+	help
+	  Device will initially advertise with shorter interval to enable quicker discovery by
+	  hosts. After this time it will shift to normal cadence advertising.
 if CAF_BLE_ADV_FAST_ADV
 
 config CAF_BLE_ADV_FAST_INT_MIN
@@ -93,8 +101,55 @@ config CAF_BLE_ADV_FAST_INT_MAX
 	  in Bluetooth Core Spec 5.2, section 7.8.5)
 
 config CAF_BLE_ADV_FAST_ADV_TIMEOUT
-	int "Time of initial fast advertising [s]"
-	default 30
+	range 1000 2000
+	default 2000
+	help
+	  Device will initially advertise with shorter interval to enable quicker discovery by
+	  hosts. After this time it will shift to normal cadence advertising.
+
+
+config CAF_BLE_ADV_SEEK_PEER_TIMEOUT
+	int "Time of initial high duty advertising [seconds]"
+	default 180
+	help
+	  Device will initially advertise with shorter interval to enable quicker discovery by
+	  hosts. After this time it will shift to normal cadence advertising.
+
+endif
+
+if	CAF_BLE_ADV_DIRECT_ADV
+	config CAF_BLE_ADV_DIRECT_ADV_TIMEOUT
+	int "Time of initial direct advertising [ms]"
+	range 200 600
+	default 600
+	help
+	  Device will initially advertise with shorter interval to enable quicker discovery by
+	  hosts. After this time it will shift to normal cadence advertising.
+
+config CAF_BLE_ADV_DIRECT_INT_MIN
+	hex "Minimum Advertising Interval during direct advertising (N * 0.625 milliseconds)"
+	range 0x20 0xa0
+	default 0x0020
+	help
+	  Minimum Advertising Interval shall be less than or equal to the
+	  Maximum Advertising Interval. The Minimum Advertising Interval and
+	  Maximum Advertising Interval should not be the same value (as stated
+	  in Bluetooth Core Spec 5.2, section 7.8.5)
+
+config CAF_BLE_ADV_DIRECT_INT_MAX
+	hex "Maximum Advertising Interval during direct advertising (N * 0.625 milliseconds)"
+	range 0x20 0xa0
+	default 0x0020
+	help
+	  Minimum Advertising Interval shall be less than or equal to the
+	  Maximum Advertising Interval. The Minimum Advertising Interval and
+	  Maximum Advertising Interval should not be the same value (as stated
+	  in Bluetooth Core Spec 5.2, section 7.8.5)
+
+config CAF_BLE_ADV_HIGH_DUTY_DIRECT_ADV_TIMEOUT
+	int "Time of initial high duty advertising [ms]"
+	range 0 600
+	default 600
 	help
 	  Device will initially advertise with shorter interval to enable quicker discovery by
 	  hosts. After this time it will shift to normal cadence advertising.

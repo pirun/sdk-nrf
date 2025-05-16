@@ -44,6 +44,16 @@ enum state {
 
 static enum state state = IS_ENABLED(CONFIG_CAF_BLE_ADV_SUSPEND_ON_READY) ?
 			  STATE_DISABLED_SUSPENDED : STATE_DISABLED;
+enum reconnect_state{
+	STATE_NONE,
+	STATE_SLOW,
+	STATE_FAST,
+	STATE_DIRECT,
+	STATE_HD_DIRECT,
+	STATE_ERROR_RECONNECT,
+	STATE_SEEK_PEER
+};
+static enum reconnect_state reconnect_state = STATE_NONE;
 static size_t grace_period_s;
 static bool direct_adv;
 static bool fast_adv;
@@ -241,6 +251,10 @@ static int ble_adv_start_directed(void)
 		adv_param = *BT_LE_ADV_CONN_DIR(&addr);
 	} else {
 		adv_param = *BT_LE_ADV_CONN_DIR_LOW_DUTY(&addr);
+#if (IS_ENABLED(CAF_BLE_ADV_DIRECT_ADV))
+		adv_param.interval_min = CONFIG_CAF_BLE_ADV_DIRECT_INT_MIN;
+		adv_param.interval_max = CONFIG_CAF_BLE_ADV_DIRECT_INT_MAX;
+#endif
 	}
 
 	adv_param.id = cur_identity;
@@ -604,8 +618,56 @@ static const char *state2str(enum state s)
 static void update_state_internal(enum state new_state)
 {
 	if (new_state == STATE_ACTIVE) {
-		fast_adv = (req_fast_adv && IS_ENABLED(CONFIG_CAF_BLE_ADV_FAST_ADV));
-		direct_adv = can_direct_adv(cur_identity);
+		switch (reconnect_state) {
+			case STATE_NONE:
+				if (bond_cnt(cur_identity) == 0) {
+					reconnect_state= STATE_SEEK_PEER;
+					fast_adv = true;
+					direct_adv = false;
+				} else {
+#if(CONFIG_CAF_BLE_ADV_DIRECT_ADV)
+					if (CONFIG_CAF_BLE_ADV_HIGH_DUTY_DIRECT_ADV_TIMEOUT != 0) {
+						reconnect_state = STATE_HD_DIRECT;
+						fast_adv = true;
+						direct_adv = true;
+					} else {
+						reconnect_state = STATE_DIRECT;
+						fast_adv = false;
+						direct_adv = true;
+					}
+#else
+					reconnect_state = STATE_FAST;
+					fast_adv = true;
+					direct_adv = false;
+#endif
+				}
+
+				break;
+			case STATE_SLOW:
+				fast_adv = false;
+				direct_adv = false;
+				break;
+
+			case STATE_FAST:
+				fast_adv = true;
+				direct_adv = false;
+				break;
+
+			case STATE_DIRECT:
+				fast_adv = false;
+				direct_adv = true;
+				break;
+
+			case STATE_HD_DIRECT:
+				fast_adv = false;
+				direct_adv = true;
+				break;
+
+			default:
+				fast_adv = false;
+				direct_adv = false;
+				break;
+		}
 	} else {
 		fast_adv = false;
 		direct_adv = false;
@@ -646,11 +708,43 @@ static void update_grace_period_work(void)
 
 static void update_fast_adv_work(void)
 {
-	if ((state == STATE_ACTIVE) && fast_adv && !direct_adv) {
-		(void)k_work_reschedule(&fast_adv_end,
-					K_SECONDS(CONFIG_CAF_BLE_ADV_FAST_ADV_TIMEOUT));
+	if (state == STATE_ACTIVE) {
+		switch (reconnect_state) {
+		case STATE_NONE:
+			// error happan
+			break;
+		case STATE_SLOW:
+			(void)k_work_reschedule(&fast_adv_end,
+			K_MSEC(CONFIG_CAF_BLE_ADV_SLOW_TIMEOUT));
+			break;
+
+		case STATE_FAST:
+			(void)k_work_reschedule(&fast_adv_end,
+			K_MSEC(CONFIG_CAF_BLE_ADV_FAST_ADV_TIMEOUT));
+
+			break;
+#if(CONFIG_CAF_BLE_ADV_DIRECT_ADV)
+		case STATE_DIRECT:
+			(void)k_work_reschedule(&fast_adv_end,
+			K_MSEC(CONFIG_CAF_BLE_ADV_DIRECT_ADV_TIMEOUT));
+			break;
+
+		case STATE_HD_DIRECT:
+			(void)k_work_reschedule(&fast_adv_end,
+			K_MSEC(CONFIG_CAF_BLE_ADV_HIGH_DUTY_DIRECT_ADV_TIMEOUT));
+			break;
+#endif
+			case STATE_SEEK_PEER:
+			(void)k_work_reschedule(&fast_adv_end,
+			K_SECONDS(CONFIG_CAF_BLE_ADV_SEEK_PEER_TIMEOUT));
+
+			break;
+		default:
+			// error happan
+			break;
+		}
 	} else {
-		(void)k_work_cancel_delayable(&fast_adv_end);
+		/* nothing*/
 	}
 }
 
@@ -727,13 +821,42 @@ static void fast_adv_end_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
 
-	__ASSERT_NO_MSG(req_fast_adv && fast_adv);
-	__ASSERT_NO_MSG(state == STATE_ACTIVE);
+	// swap advertisement statemachine
+	switch (reconnect_state) {
+	case STATE_NONE:
+		// error happan
+		reconnect_state = STATE_ERROR_RECONNECT;
+		break;
+	case STATE_SLOW:
+		reconnect_state= STATE_NONE;
+		update_state(STATE_IDLE);
+		break;
 
-	req_fast_adv = false;
-	update_state(STATE_ACTIVE);
+	case STATE_FAST:
+		reconnect_state= STATE_SLOW;
+		update_state(STATE_ACTIVE);
+		break;
 
-	__ASSERT_NO_MSG(!fast_adv);
+	case STATE_DIRECT:
+		reconnect_state= STATE_FAST;
+		update_state(STATE_ACTIVE);
+		break;
+
+	case STATE_HD_DIRECT:
+		reconnect_state= STATE_DIRECT;
+		update_state(STATE_ACTIVE);
+		break;
+
+	case STATE_SEEK_PEER:
+		reconnect_state= STATE_NONE;
+		update_state(STATE_IDLE);
+		break;
+
+	default:
+		// error happan
+		break;
+	}
+
 }
 
 static void rpa_rotate_fn(struct k_work *work)
@@ -970,6 +1093,7 @@ static bool handle_ble_peer_event(const struct ble_peer_event *event)
 		if (state != STATE_OFF) {
 			req_new_adv_session = true;
 			req_fast_adv = true;
+			reconnect_state = STATE_NONE;
 			update_state(STATE_DELAYED_ACTIVE);
 		}
 		break;
@@ -1023,6 +1147,7 @@ static bool handle_ble_peer_operation_event(const struct ble_peer_operation_even
 		}
 		req_fast_adv = true;
 		req_new_adv_session = true;
+		reconnect_state = STATE_NONE;
 
 		/* Advertising must be stopped while getting the connection object. */
 		int err = bt_le_adv_stop();
@@ -1121,6 +1246,7 @@ static bool handle_wake_up_event(const struct wake_up_event *event)
 	case STATE_GRACE_PERIOD:
 		req_new_adv_session = true;
 		req_fast_adv = true;
+		reconnect_state = STATE_NONE;
 		update_state(STATE_ACTIVE);
 		break;
 
@@ -1214,6 +1340,7 @@ static bool handle_module_resume_req_event(const struct module_resume_req_event 
 	case STATE_SUSPENDED:
 		req_new_adv_session = true;
 		req_fast_adv = true;
+		reconnect_state = STATE_NONE;
 		update_state(STATE_DELAYED_ACTIVE);
 		break;
 
