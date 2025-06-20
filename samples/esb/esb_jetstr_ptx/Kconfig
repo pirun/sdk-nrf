@@ -1,0 +1,37 @@
+#
+# Copyright (c) 2020 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+source "Kconfig.zephyr"
+
+menu "Enhanced ShockBurst: Transmitter"
+
+config ESB_PTX_APP_LOG_LEVEL
+	int "Log level for the ESB PTX sample"
+	default 4
+
+config ESB_PTX_TX_LENGTH
+	int "TX payload length"
+	range 1 ESB_MAX_PAYLOAD_LENGTH
+	default 1
+
+config APP_DATA_LENGTH
+	int "Exact payload length"
+	range 1 ESB_MAX_PAYLOAD_LENGTH
+	default 4
+
+config ESB_PTX_BATCH_SIZE
+	int "TX batch size"
+	range 1 4000000000
+	default 1000
+
+config ESB_PTX_DELAY
+	int "TX delay"
+	range 0 10000000
+	default 0
+	help
+	  Delay a number of microseconds before sending an ESB packet.
+
+endmenu

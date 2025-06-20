@@ -1172,8 +1172,12 @@ static void start_tx_transaction(void)
 		pdu->type.dpl_pdu.length = current_payload->length;
 		pdu->type.dpl_pdu.pid = current_payload->pid;
 		pdu->type.dpl_pdu.no_ack = current_payload->noack ? 0x00 : 0x01;
-
+#if defined(CONFIG_JETSTR)
+		memcpy(pdu->data, &current_payload->data[1], current_payload->length);
+		current_payload->data[0] = 0;
+#else
 		memcpy(pdu->data, current_payload->data, current_payload->length);
+#endif
 
 		/* Handling ack if noack is set to false or if
 		 * selective auto ack is turned off

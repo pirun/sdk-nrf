@@ -1,0 +1,25 @@
+#
+# Copyright (c) 2020 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+source "Kconfig.zephyr"
+
+menu "Enhanced ShockBurst: Receiver"
+
+config ESB_PRX_APP_LOG_LEVEL
+	int "Log level for the ESB PRX sample"
+	default 4
+
+config ESB_PRX_TX_LENGTH
+	int "ACK payload length"
+	range 0 ESB_MAX_PAYLOAD_LENGTH
+	default 0
+
+config APP_DATA_LENGTH
+	int "Exact payload length"
+	range 1 ESB_MAX_PAYLOAD_LENGTH
+	default 4
+
+endmenu

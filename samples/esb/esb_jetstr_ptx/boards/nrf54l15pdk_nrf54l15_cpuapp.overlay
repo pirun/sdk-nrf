@@ -1,0 +1,18 @@
+/{
+	esb_gpio {
+		compatible = "gpio-leds";
+		esb_io_radio_disabled: esb-io-radio-disabled {
+			gpios = <&gpio2 9 GPIO_ACTIVE_LOW>;
+			label = "esb io radio disabled";
+		};
+		esb_io_radio_rx: esb-io-radio-rx {
+			gpios = <&gpio1 10 GPIO_ACTIVE_LOW>;
+			label = "esb io radio ready";
+		};
+		esb_io_radio_tx: esb-io-radio-tx {
+			gpios = <&gpio2 7 GPIO_ACTIVE_LOW>;
+			label = "esb io radio ready";
+		};
+	};
+
+};

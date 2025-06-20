@@ -1,0 +1,18 @@
+#
+# Copyright (c) 2025 Nordic Semiconductor
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+config JETSTREAM
+	bool "Jetstream ESB channel hopping"
+	help
+	  Enable Jetstream ESB channel hopping support.
+
+if JETSTREAM
+
+module = JETSTREAM
+module-str = JETSTREAM
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
+endif #JETSTREAM
